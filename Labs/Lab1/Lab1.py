@@ -60,9 +60,12 @@ class NeuralNetwork:
       case 'sigmoid':
         self.activation = self.sigmoid
         self.deriv = self.derivative_sigmoid
+      case 'relu':
+        self.activation = self.relu
+        self.deriv = self.derivative_relu
       case _:
         self.activation = lambda x: x
-        self.deriv = lambda x: 0
+        self.deriv = lambda x: 1
 
   # back propagation
   def forward_pass(self, x):
@@ -110,10 +113,10 @@ class NeuralNetwork:
   # testing
   def test(self, x, yhat):
     pred_y = self.forward_pass(x)
-    acc = self.accuracy(pred_y, yhat)
     l = self.mse(pred_y, yhat)
     for i in range(len(pred_y)):
       print('| Iter{:2d} | Ground truth: {:1.1f} | prediction: {:.5f} |'.format(i, yhat.flatten()[i], pred_y.flatten()[i]))
+    acc = self.accuracy(pred_y, yhat)
     print('loss={:.5f} accuracy={:3.2f}%'.format(l, acc*100))
     return pred_y
 
@@ -122,6 +125,11 @@ class NeuralNetwork:
     return 1.0/(1.0 + np.exp(-x))
   def derivative_sigmoid(self, x):
     return np.multiply(x, 1.0-x)
+  
+  def relu(self, x):
+    return x * (x > 0)
+  def derivative_relu(self, x):
+    return 1 * (x > 0)
 
   # loss function
   def mse(self, y, yhat):
@@ -163,8 +171,8 @@ if __name__ == '__main__':
   # x, yhat = generate_XOR_easy()
   x, yhat = generate_linear(n=100)
 
-  myNN = NeuralNetwork([2,3,3,1], 'sigmoid', 0.5)
-  myNN.train(x, yhat, 2000)
+  myNN = NeuralNetwork([2,3,3,1], 'relu', 0.5)
+  myNN.train(x, yhat, 2)
   myNN.plot(myNN.trainLoss)
   pred_y = myNN.test(x, yhat)
   myNN.show_result(x, yhat, pred_y)
