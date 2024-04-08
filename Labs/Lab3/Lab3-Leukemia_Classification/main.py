@@ -1,4 +1,6 @@
 import pandas as pd
+import ResNet.py as rn
+import dataloader
 
 def evaluate():
     print("evaluate() not defined")
@@ -18,3 +20,5 @@ def save_result(csv_path, predict_result):
 
 if __name__ == "__main__":
     print("Good Luck :)")
+    res18 = rn.ResNet18([2, 2, 2, 2])
+    res18.train()

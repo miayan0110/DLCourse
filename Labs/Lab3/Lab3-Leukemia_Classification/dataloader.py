@@ -75,8 +75,6 @@ class LeukemiaLoader(data.Dataset):
         img.append(img_b/img_b.max())
         img = np.array(img)
 
-        print(img.shape)
-
         """
             step4. Return processed image and label
         """
