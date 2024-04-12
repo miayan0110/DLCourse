@@ -8,23 +8,23 @@ class ResBlock(nn.Module):
         super(ResBlock, self).__init__()
         self.is_downsample = is_downsample
 
-        self.conv1 = nn.Conv2d(in_c, out_c, kernel_size=kernel_size, stride=stride)
+        self.conv1 = nn.Conv2d(in_c, out_c, kernel_size=kernel_size, stride=stride, padding=1)
         self.bn1 = nn.BatchNorm2d(out_c)
-        self.relu = nn.ReLU()
-        self.conv2 = nn.Conv2d(out_c, out_c, kernel_size=kernel_size)
+        self.relu1 = nn.ReLU()
+        self.conv2 = nn.Conv2d(out_c, out_c, kernel_size=kernel_size, padding=1)
         self.bn2 = nn.BatchNorm2d(out_c)
+        self.relu2 = nn.ReLU()
         if is_downsample:
             self.downsample = nn.Sequential(
-                nn.Conv2d(in_c, out_c, kernel_size=1, stride=2),
+                nn.Conv2d(in_c, out_c, kernel_size=1, stride=stride),
                 nn.BatchNorm2d(out_c)
             )
 
     def forward(self, x):
         sample = x
-
         output = self.conv1(x)
         output = self.bn1(output)
-        output = self.relu(output)
+        output = self.relu1(output)
         output = self.conv2(output)
         output = self.bn2(output)
 
@@ -32,7 +32,8 @@ class ResBlock(nn.Module):
             sample = self.downsample(x)
 
         output += sample
-        return nn.ReLU(output)
+        output = self.relu2(output)
+        return output
 
 class ResBottleneck(nn.Module):
     def __init__(self, previous_out, in_c, out_c, kernel_size, stride, is_downsample=False):
@@ -47,9 +48,10 @@ class ResBottleneck(nn.Module):
         self.relu2 = nn.ReLU()
         self.conv3 = nn.Conv2d(in_c, out_c, kernel_size=1)
         self.bn3 = nn.BatchNorm2d(out_c)
+        self.relu3 = nn.ReLU()
         if is_downsample:
             self.downsample = nn.Sequential(
-                nn.Conv2d(previous_out, out_c, kernel_size=1, stride=2),
+                nn.Conv2d(previous_out, out_c, stride=stride),
                 nn.BatchNorm2d(out_c)
             )
 
@@ -69,7 +71,8 @@ class ResBottleneck(nn.Module):
             sample = self.downsample(x)
 
         output += sample
-        return nn.ReLU(output)
+        output = self.relu3(output)
+        return output
 
 
 class ResNet(nn.Module):
@@ -89,12 +92,12 @@ class ResNet(nn.Module):
         self.maxPool = nn.MaxPool2d(kernel_size=3, stride=2)
 
         self.conv2x = self.generate_block(block, block_def[0], 3, 1)
-        self.conv3x= self.generate_block(block, block_def[1], 3, 2, True)
+        self.conv3x = self.generate_block(block, block_def[1], 3, 2, True)
         self.conv4x = self.generate_block(block, block_def[2], 3, 2, True)
         self.conv5x = self.generate_block(block, block_def[3], 3, 2, True)
-        self.avgPool = nn.AvgPool2d(kernel_size=7)
+        self.avgPool = nn.AdaptiveAvgPool2d((1, 1))
 
-        self.fc = nn.Linear(self.previous_out, 1)
+        self.fc = nn.Linear(self.previous_out, 2)
 
     def forward(self, x):
         x = self.conv1(x)
@@ -108,6 +111,7 @@ class ResNet(nn.Module):
 
         x = torch.flatten(x, 1)
         x = self.fc(x)
+        return x
 
     def generate_block(self, block, layers, kernel_size=1, stride=1, downsample=False):
         layer = []

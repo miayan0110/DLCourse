@@ -5,7 +5,7 @@ import numpy as np
 
 def getData(mode):
     if mode == 'train':
-        df = pd.read_csv('Path to train.csv')
+        df = pd.read_csv('./Labs/Lab3/Lab3-Leukemia_Classification/Path to train.csv')
         path = df['Path'].tolist()
         label = df['label'].tolist()
         return path, label
@@ -50,7 +50,7 @@ class LeukemiaLoader(data.Dataset):
 
         weight, height = img_p.size
         channel_mode = img_p.mode
-        print("img[{}]: size={}x{}, mode={}".format(index, weight, height, channel_mode))
+        # print("img[{}]: size={}x{}, mode={}".format(index, weight, height, channel_mode))
 
         """
            step2. Get the ground truth label from self.label
@@ -67,7 +67,10 @@ class LeukemiaLoader(data.Dataset):
                   hints : Convert the pixel value to [0, 1]
                           Transpose the image shape from [H, W, C] to [C, H, W]
         """
-        img_r, img_g, img_b = np.array(img_p.split())
+        img_r, img_g, img_b = img_p.split()
+        img_r = np.array(img_r)
+        img_g = np.array(img_g)
+        img_b = np.array(img_b)
 
         img = []
         img.append(img_r/img_r.max())
