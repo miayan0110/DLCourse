@@ -8,8 +8,8 @@ import numpy as np
 
 # hyperparameters
 hps = {
-    "learning_rate": 0.01,
-    "batch_size": 4,
+    "learning_rate": 0.001,
+    "batch_size": 50,
     "n_epochs": 10
 }
 
@@ -77,7 +77,7 @@ def save_result(csv_path, predict_result):
     new_df.to_csv("./your_student_id_resnet18.csv", index=False)
 
 if __name__ == "__main__":
-    dataLoader = dl.LeukemiaLoader("./Labs/Lab3/Lab3-Leukemia_Classification/training_data/", "train")
+    dataLoader = dl.LeukemiaLoader("./training_data/", "train")
 
     res18 = rn.ResNet("18", rn.ResBlock, 3, [2, 2, 2, 2])
     train(dataLoader, res18)

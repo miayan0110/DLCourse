@@ -5,7 +5,7 @@ import numpy as np
 
 def getData(mode):
     if mode == 'train':
-        df = pd.read_csv('./Labs/Lab3/Lab3-Leukemia_Classification/Path to train.csv')
+        df = pd.read_csv('Path to train.csv')
         path = df['Path'].tolist()
         label = df['label'].tolist()
         return path, label
@@ -17,7 +17,7 @@ def getData(mode):
         return path, label
     
     else:
-        df = pd.read_csv('Path to resnet_18/50/152_test.csv')
+        df = pd.read_csv('Path to test.csv')
         path = df['Path'].tolist()
         return path
 
