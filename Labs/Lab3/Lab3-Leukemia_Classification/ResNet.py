@@ -43,7 +43,7 @@ class ResBottleneck(nn.Module):
         self.conv1 = nn.Conv2d(previous_out, in_c, kernel_size=1, stride=stride)
         self.bn1 = nn.BatchNorm2d(in_c)
         self.relu1 = nn.ReLU()
-        self.conv2 = nn.Conv2d(in_c, in_c, kernel_size=3)
+        self.conv2 = nn.Conv2d(in_c, in_c, kernel_size=3, padding=1)
         self.bn2 = nn.BatchNorm2d(in_c)
         self.relu2 = nn.ReLU()
         self.conv3 = nn.Conv2d(in_c, out_c, kernel_size=1)
@@ -51,7 +51,7 @@ class ResBottleneck(nn.Module):
         self.relu3 = nn.ReLU()
         if is_downsample:
             self.downsample = nn.Sequential(
-                nn.Conv2d(previous_out, out_c, stride=stride),
+                nn.Conv2d(previous_out, out_c, kernel_size=1, stride=stride),
                 nn.BatchNorm2d(out_c)
             )
 
@@ -130,6 +130,7 @@ class ResNet(nn.Module):
 
                 self._out *= 2
             case _:
+                is_downsample = True
                 self._out = self._in*4
                 for _ in range(layers):
                     layer.append(block(self.previous_out, self._in, self._out, kernel_size, stride, is_downsample))
