@@ -31,7 +31,7 @@ def evaluate(valid_loader, model):
         loss = crossEntropy(pred, labels)
 
         batch_valid_cost.append(loss.item())
-        batch_valid_correct.append((pred.argmax(dim=1) == labels).mean())
+        batch_valid_correct.append((pred.argmax(dim=1) == labels).float().mean())
 
     valid_loss = sum(batch_valid_cost)/len(batch_valid_cost)
     valid_acc = sum(batch_valid_correct)/len(batch_valid_correct)
@@ -57,7 +57,7 @@ def test(test_loader, model, max_acc, min_loss):
         loss = crossEntropy(pred, labels)
 
         batch_test_cost.append(loss.item())
-        batch_test_correct.append((pred.argmax(dim=1) == labels).mean())
+        batch_test_correct.append((pred.argmax(dim=1) == labels).float().mean())
 
     test_loss = sum(batch_test_cost)/len(batch_test_cost)
     test_acc = sum(batch_test_correct)/len(batch_test_correct)
@@ -101,7 +101,7 @@ def train(train_loader, test_loader, model):
             optimizer.step()
 
             batch_train_cost.append(loss.item())
-            batch_train_correct.append((pred.argmax(dim=1) == labels).mean())
+            batch_train_correct.append((pred.argmax(dim=1) == labels).float().mean())
 
         epoch_loss = sum(batch_train_cost)/len(batch_train_cost)
         epoch_acc = sum(batch_train_correct)/len(batch_train_correct)
@@ -148,11 +148,11 @@ if __name__ == "__main__":
     # hyperparameters
     hps = {
         "learning_rate": 0.001,
-        "batch_size": 2,
-        "n_epochs": 1,
+        "batch_size": 128,
+        "n_epochs": 10,
         "model": "18",
         "device": device,
-        "data_path": "./debug_training_data/",
+        "data_path": "./training_data/",
         "save_path": "./models/new_res"
     }
 
