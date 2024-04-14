@@ -5,19 +5,19 @@ import numpy as np
 
 def getData(mode):
     if mode == 'train':
-        df = pd.read_csv('Path to train.csv')
+        df = pd.read_csv('training.csv')
         path = df['Path'].tolist()
         label = df['label'].tolist()
         return path, label
     
     elif mode == "valid":
-        df = pd.read_csv('Path to valid.csv')
+        df = pd.read_csv('validation.csv')
         path = df['Path'].tolist()
         label = df['label'].tolist()
         return path, label
     
     else:
-        df = pd.read_csv('Path to test.csv')
+        df = pd.read_csv('testing.csv')
         path = df['Path'].tolist()
         return path
 
@@ -48,8 +48,8 @@ class LeukemiaLoader(data.Dataset):
         """
         img_p = Image.open(self.root+self.img_name[index])
 
-        weight, height = img_p.size
-        channel_mode = img_p.mode
+        # weight, height = img_p.size
+        # channel_mode = img_p.mode
         # print("img[{}]: size={}x{}, mode={}".format(index, weight, height, channel_mode))
 
         """

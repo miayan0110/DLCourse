@@ -1,75 +1,69 @@
-import pandas as pd
 import ResNet as rn
 import dataloader as dl
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import numpy as np
 import matplotlib.pyplot as plt
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
-# hyperparameters
-hps = {
-    "learning_rate": 0.001,
-    "batch_size": 50,
-    "n_epochs": 10,
-    "model": "50"
-}
 
 # history
 history = {"train_loss": [], "train_acc": [], "test_loss": [], "test_acc": []}
 
 
-def evaluate(dataLoader, model):
-    dataset_size = dataLoader.__len__()
+def evaluate(valid_loader, model):
+    device = hps["device"]
     crossEntropy = nn.CrossEntropyLoss()
 
-    features = []
-    labels = []
+    batch_valid_cost = []
+    batch_valid_correct = []
 
-    for i in range(dataset_size):
-        feature, label = dataLoader.__getitem__(i)
-        features.append(feature)
-        labels.append(label)
-    features = torch.from_numpy(np.array(features)).float()
-    labels = torch.from_numpy(np.array(labels)).long()
     model.eval()
 
-    pred = model(features)
-    loss = crossEntropy(pred, labels)
+    for batch in tqdm(valid_loader):
+        features, labels = batch
+        features = features.float().to(device)
+        labels = labels.long().to(device)
 
-    correct = (pred.argmax(dim=1) == labels).sum()
+        pred = model(features)
+        loss = crossEntropy(pred, labels)
 
-    valid_loss = loss.item()
-    valid_acc = correct/dataset_size
+        batch_valid_cost.append(loss.item())
+        batch_valid_correct.append((pred.argmax(dim=1) == labels).mean())
+
+    valid_loss = sum(batch_valid_cost)/len(batch_valid_cost)
+    valid_acc = sum(batch_valid_correct)/len(batch_valid_correct)
 
     print(f"validation loss = {valid_loss:5f}, validation acc = {valid_acc:.5f}")
 
 
-def test(dataLoader, model, max_acc, min_loss):
-    dataset_size = dataLoader.__len__()
+def test(test_loader, model, max_acc, min_loss):
+    device = hps["device"]
     crossEntropy = nn.CrossEntropyLoss()
 
-    features = []
-    labels = []
+    batch_test_cost = []
+    batch_test_correct = []
 
-    for i in range(dataset_size):
-        feature, label = dataLoader.__getitem__(i)
-        features.append(feature)
-        labels.append(label)
-    features = torch.from_numpy(np.array(features)).float()
-    labels = torch.from_numpy(np.array(labels)).long()
     model.eval()
 
-    pred = model(features)
-    loss = crossEntropy(pred, labels)
+    for batch in tqdm(test_loader):
+        features, labels = batch
+        features = features.float().to(device)
+        labels = labels.long().to(device)
 
-    correct = (pred.argmax(dim=1) == labels).sum()
+        pred = model(features)
+        loss = crossEntropy(pred, labels)
 
-    test_loss = loss.item()
-    test_acc = correct/dataset_size
+        batch_test_cost.append(loss.item())
+        batch_test_correct.append((pred.argmax(dim=1) == labels).mean())
 
-    history["test_acc"].append(test_acc)
+    test_loss = sum(batch_test_cost)/len(batch_test_cost)
+    test_acc = sum(batch_test_correct)/len(batch_test_correct)
+
     history["test_loss"].append(test_loss)
+    history["test_acc"].append(test_acc)
 
     print(f"test loss = {test_loss:5f}, test acc = {test_acc:.5f}")
 
@@ -80,60 +74,47 @@ def test(dataLoader, model, max_acc, min_loss):
         return max_acc, min_loss
 
 
-def train(dataLoader, model):
-    dataset_size = dataLoader.__len__()
+def train(train_loader, test_loader, model):
+    device = hps["device"]
     n_epochs = hps["n_epochs"]
-    lack_size = dataset_size%hps["batch_size"]
-    is_lack = (lack_size > 0)
-    n_batches = dataset_size//hps["batch_size"] + is_lack
     optimizer = optim.Adam(model.parameters(), lr=hps["learning_rate"])
     crossEntropy = nn.CrossEntropyLoss()
     max_test_acc = 0.0
     min_test_loss = 10.0
 
     for epoch in range(n_epochs):
-        correct = 0.0
-        cost = 0.0
+        batch_train_cost = []
+        batch_train_correct = []
 
-        for batch in range(n_batches):
-            print(f"[ Train | {epoch+1:02d}/{n_epochs:02d} | batch {batch+1} ]")
-            features = []
-            labels = []
+        model.train()
 
-            for i in range(hps["batch_size"]):
-                if is_lack and batch == n_batches-1 and len(features) == lack_size:
-                    break
-                feature, label = dataLoader.__getitem__(batch*hps["batch_size"]+i)
-                features.append(feature)
-                labels.append(label)
-            features = torch.from_numpy(np.array(features)).float()
-            labels = torch.from_numpy(np.array(labels)).float()
-
-            model.train()
+        for batch in tqdm(train_loader):
+            features, labels = batch
+            features = features.float().to(device)
+            labels = labels.long().to(device)
 
             optimizer.zero_grad()
 
             pred = model(features)
-            loss = crossEntropy(pred, labels.long())
+            loss = crossEntropy(pred, labels)
             loss.backward()
-
             optimizer.step()
 
-            correct += (pred.argmax(dim=1) == labels).sum()
-            cost += loss.item()
-        epoch_acc = correct/dataset_size
-        epoch_loss = cost/n_batches
+            batch_train_cost.append(loss.item())
+            batch_train_correct.append((pred.argmax(dim=1) == labels).mean())
+
+        epoch_loss = sum(batch_train_cost)/len(batch_train_cost)
+        epoch_acc = sum(batch_train_correct)/len(batch_train_correct)
         history["train_acc"].append(epoch_acc)
         history["train_loss"].append(epoch_loss)
 
         print(f"[ Train | {epoch+1:02d}/{n_epochs:02d} ] loss = {epoch_loss:.5f}, acc = {epoch_acc:.5f}")
 
-        testloader = dl.LeukemiaLoader("./training_data/", "valid")
-        max_test_acc, min_test_loss = test(testloader, model, max_test_acc, min_test_loss)
+        max_test_acc, min_test_loss = test(test_loader, model, max_test_acc, min_test_loss)
 
 
 def save_model(model):
-    path = "./models/res"+hps["model"]+".pt"
+    path = hps["save_path"]+hps["model"]+".pt"
     print("saving model...")
     torch.save(model.state_dict(), path)
 
@@ -158,10 +139,27 @@ def save_result(csv_path, predict_result):
     new_df["label"] = predict_result
     new_df.to_csv("./your_student_id_resnet18.csv", index=False)
 
-if __name__ == "__main__":
-    dataLoader = dl.LeukemiaLoader("./training_data/", "train")
 
-    res = rn.ResNet(hps["model"], rn.ResBottleneck, 3, [3, 4, 6, 3])
-    print(res)
-    train(dataLoader, res)
-    # plot(history, hps["n_epochs"])
+
+if __name__ == "__main__":
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    print(f"Device: {device}")
+
+    # hyperparameters
+    hps = {
+        "learning_rate": 0.001,
+        "batch_size": 2,
+        "n_epochs": 1,
+        "model": "18",
+        "device": device,
+        "data_path": "./debug_training_data/",
+        "save_path": "./models/new_res"
+    }
+
+    train_loader = DataLoader(dl.LeukemiaLoader(hps["data_path"], "train"), batch_size=hps["batch_size"], shuffle=True)
+    test_loader = DataLoader(dl.LeukemiaLoader(hps["data_path"], "valid"), batch_size=hps["batch_size"], shuffle=False)
+
+    res = rn.ResNet(hps["model"], rn.ResBlock, 3, [2, 2, 2, 2]).to(device)
+    # print(res)
+    train(train_loader, test_loader, res)
+    plot(history, hps["n_epochs"])

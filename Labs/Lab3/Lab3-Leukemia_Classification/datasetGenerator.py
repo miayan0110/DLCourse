@@ -32,12 +32,13 @@ class LeukemiaDataSet:
                     writer.writerow(self.dataset.pop())
 
 if __name__ == "__main__":
-    path = "training_data"
+    path = "debug_training_data"
     filenames = ["Path to train.csv", "Path to valid.csv", "Path to test.csv"]
-    data_amount = [150, 50, 50]
+    data_amount = [7995, 1599, 1067]
 
     leukemia = LeukemiaDataSet(path)
     # leukemia.list_dir()
     leukemia.generate_data()
-    leukemia.divide_data(filenames, data_amount)
+    leukemia.divide_data()
+    # leukemia.divide_data(filenames, data_amount)
     
