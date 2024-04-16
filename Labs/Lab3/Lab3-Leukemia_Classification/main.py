@@ -169,9 +169,9 @@ if __name__ == "__main__":
     # hyperparameters
     hps = {
         "learning_rate": 0.01,
-        "batch_size": 128,  # 8/4
+        "batch_size": 128,      # 128/8/4
         "n_epochs": 10,
-        "model": "18",  #"50"/"152"
+        "model": "18",          # "18"/"50"/"152"
         "device": device,
         "data_path": "./training_data/",
         "save_path": "./models/new_res"
