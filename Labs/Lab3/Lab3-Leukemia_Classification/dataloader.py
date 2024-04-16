@@ -18,8 +18,8 @@ def getData(mode):
     
     else:
         df = pd.read_csv('testing.csv')
-        path = df['Path'].tolist()
-        return path
+        label = df['label'].tolist()
+        return path, label
 
 class LeukemiaLoader(data.Dataset):
     def __init__(self, root, mode):
