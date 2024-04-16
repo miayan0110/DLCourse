@@ -169,18 +169,20 @@ if __name__ == "__main__":
     # hyperparameters
     hps = {
         "learning_rate": 0.01,
-        "batch_size": 128,      # 128/8/4
         "n_epochs": 10,
-        "model": "18",          # "18"/"50"/"152"
+        "batch_size": 128,                  # 128/8/4
+        "model": "18",                      # "18"/"50"/"152"
+        "block": rn.ResBlock,               # ResBlock/ResBottleneck/ResBottleneck
+        "block_definition": [2, 2, 2, 2],   # [2, 2, 2, 2]/[3, 4, 6, 3]/[3, 8, 36, 3]
         "device": device,
-        "data_path": "./training_data/",
-        "save_path": "./models/new_res"
+        "data_path": "../input/training-data/training_data/",
+        "save_path": "../working/res"
     }
 
     train_loader = DataLoader(dl.LeukemiaLoader(hps["data_path"], "train"), batch_size=hps["batch_size"], shuffle=True)
     test_loader = DataLoader(dl.LeukemiaLoader(hps["data_path"], "valid"), batch_size=hps["batch_size"], shuffle=False)
-
-    res = rn.ResNet(hps["model"], rn.ResBlock, 3, [2, 2, 2, 2]).to(device)
+    in_channels = 3
+    res = rn.ResNet(hps["model"], rn.ResBlock, in_channels, hps["block_definition"]).to(device)
 
     gc.collect()
     train(train_loader, test_loader, res)
