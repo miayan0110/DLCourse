@@ -77,8 +77,8 @@ class Gaussian_Predictor(nn.Sequential):
         
     def reparameterize(self, mu, logvar):
         # TODO
-        epsoid = torch.normal(0, 1, size=(logvar))
-        z = mu + epsoid*logvar
+        epsilon = torch.normal(0, 1, size=(logvar))
+        z = mu + epsilon*logvar
         
         return z
 

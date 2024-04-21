@@ -36,19 +36,33 @@ def kl_criterion(mu, logvar, batch_size):
 class kl_annealing():
     def __init__(self, args, current_epoch=0):
         # TODO
-        raise NotImplementedError
+        self.kl_anneal_type = args.kl_anneal_type
+        self.current_epoch = current_epoch
+
+        self.bias = self.frange_cycle_linear(args.num_epoch, 0.0, 1.0, args.kl_anneal_cycle, args.kl_anneal_ratio)
         
     def update(self):
         # TODO
-        raise NotImplementedError
+        self.current_epoch += 1
     
     def get_beta(self):
         # TODO
-        raise NotImplementedError
+        return self.bias[self.current_epoch]
 
     def frange_cycle_linear(self, n_iter, start=0.0, stop=1.0,  n_cycle=1, ratio=1):
         # TODO
-        raise NotImplementedError
+        bias = np.ones(n_iter)
+        period = n_iter/n_cycle
+        step = (stop-start)/(period*ratio) # linear schedule
+
+        for c in range(n_cycle):
+
+            v , i = start , 0
+            while v <= stop and (int(i+c*period) < n_iter):
+                bias[int(i+c*period)] = v
+                v += step
+                i += 1
+        return bias
         
 
 class VAE_Model(nn.Module):
@@ -123,11 +137,45 @@ class VAE_Model(nn.Module):
     
     def training_one_step(self, img, label, adapt_TeacherForcing):
         # TODO
-        raise NotImplementedError
+        img = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
+        label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
+        assert label.shape[0] == 630, "Testing pose seqence should be 630"
+        assert img.shape[0] == 1, "Testing video seqence should be 1"
+
+        # Normal normal
+        last_human_feat = self.frame_transformation(img[0])
+        first_templete = last_human_feat.clone()
+        out = img[0]
+        
+        for i in range(1, self.val_vi_len):
+            z = torch.cuda.FloatTensor(1, self.args.N_dim, self.args.frame_H, self.args.frame_W).normal_()
+            label_feat = self.label_transformation(label[i])
+            human_feat_hat = self.frame_transformation(out)
+            
+            parm = self.Decoder_Fusion(human_feat_hat, label_feat, z)    
+            out = self.Generator(parm)
+            mse_loss = self.mse_criterion(out, img)
     
     def val_one_step(self, img, label):
         # TODO
-        raise NotImplementedError
+        img = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
+        label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
+        assert label.shape[0] == 630, "Testing pose seqence should be 630"
+        assert img.shape[0] == 1, "Testing video seqence should be 1"
+
+        # Normal normal
+        last_human_feat = self.frame_transformation(img[0])
+        first_templete = last_human_feat.clone()
+        out = img[0]
+        
+        for i in range(1, self.val_vi_len):
+            z = torch.cuda.FloatTensor(1, self.args.N_dim, self.args.frame_H, self.args.frame_W).normal_()
+            label_feat = self.label_transformation(label[i])
+            human_feat_hat = self.frame_transformation(out)
+            
+            parm = self.Decoder_Fusion(human_feat_hat, label_feat, z)    
+            out = self.Generator(parm)
+            mse_loss = self.mse_criterion(out, img)
                 
     def make_gif(self, images_list, img_name):
         new_list = []
