@@ -84,6 +84,7 @@ class VAE_Model(nn.Module):
         self.optim      = optim.Adam(self.parameters(), lr=self.args.lr)
         self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[2, 5], gamma=0.1)
         self.kl_annealing = kl_annealing(args, current_epoch=0)
+        self.kl_criterion = nn.KLDivLoss(reduction="batchmean", log_target=True)
         self.mse_criterion = nn.MSELoss()
         self.current_epoch = 0
         
@@ -95,7 +96,9 @@ class VAE_Model(nn.Module):
         self.train_vi_len = args.train_vi_len
         self.val_vi_len   = args.val_vi_len
         self.batch_size = args.batch_size
-        
+
+        # data to plot
+        self.loss = []
         
     def forward(self, img, label):
         pass
@@ -109,6 +112,7 @@ class VAE_Model(nn.Module):
                 img = img.to(self.args.device)
                 label = label.to(self.args.device)
                 loss = self.training_one_step(img, label, adapt_TeacherForcing)
+                self.loss.append(loss)
                 
                 beta = self.kl_annealing.get_beta()
                 if adapt_TeacherForcing:
@@ -142,10 +146,14 @@ class VAE_Model(nn.Module):
         assert label.shape[0] == 630, "Testing pose seqence should be 630"
         assert img.shape[0] == 1, "Testing video seqence should be 1"
 
+        decoded_frame_list = [img[0].cpu()] # decoder output
+        label_list = []
+
         # Normal normal
         last_human_feat = self.frame_transformation(img[0])
         first_templete = last_human_feat.clone()
         out = img[0]
+        loss = []
         
         for i in range(1, self.val_vi_len):
             z = torch.cuda.FloatTensor(1, self.args.N_dim, self.args.frame_H, self.args.frame_W).normal_()
@@ -154,7 +162,18 @@ class VAE_Model(nn.Module):
             
             parm = self.Decoder_Fusion(human_feat_hat, label_feat, z)    
             out = self.Generator(parm)
+
+            decoded_frame_list.append(out.cpu())
+            label_list.append(label[i].cpu())
+
+            kl_div = self.kl_criterion(img, parm)
             mse_loss = self.mse_criterion(out, img)
+            beta = self.kl_annealing.get_beta()
+            loss.append(mse_loss + beta*kl_div)
+
+            # teacher forcing
+            out = img[i] if adapt_TeacherForcing else out
+        return sum(loss)/len(loss)
     
     def val_one_step(self, img, label):
         # TODO
@@ -163,10 +182,14 @@ class VAE_Model(nn.Module):
         assert label.shape[0] == 630, "Testing pose seqence should be 630"
         assert img.shape[0] == 1, "Testing video seqence should be 1"
 
+        decoded_frame_list = [img[0].cpu()] # decoder output
+        label_list = []
+
         # Normal normal
         last_human_feat = self.frame_transformation(img[0])
         first_templete = last_human_feat.clone()
         out = img[0]
+        loss = []
         
         for i in range(1, self.val_vi_len):
             z = torch.cuda.FloatTensor(1, self.args.N_dim, self.args.frame_H, self.args.frame_W).normal_()
@@ -175,7 +198,14 @@ class VAE_Model(nn.Module):
             
             parm = self.Decoder_Fusion(human_feat_hat, label_feat, z)    
             out = self.Generator(parm)
+
+            decoded_frame_list.append(out.cpu())
+            label_list.append(label[i].cpu())
+
+            kl_div = self.kl_criterion(img, parm)
             mse_loss = self.mse_criterion(out, img)
+            loss.append(mse_loss + kl_div)
+        return sum(loss)/len(loss)
                 
     def make_gif(self, images_list, img_name):
         new_list = []
@@ -218,7 +248,8 @@ class VAE_Model(nn.Module):
     
     def teacher_forcing_ratio_update(self):
         # TODO
-        raise NotImplementedError
+         if self.current_epoch >= self.tfr_sde:
+             self.tfr -= self.tfr_d_step
             
     def tqdm_bar(self, mode, pbar, loss, lr):
         pbar.set_description(f"({mode}) Epoch {self.current_epoch}, lr:{lr}" , refresh=False)
