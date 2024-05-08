@@ -17,17 +17,19 @@ from atari_wrappers import wrap_deepmind, make_atari
 
 class ReplayMemory(object):
     ## TODO ##
-    def __init__(self):
-        
+    def __init__(self, capacity=100000):
+        self.size = capacity
+        self.buffer = deque(maxlen=capacity)
 
-
-    def push(self, state, action, reward, done):
+    def push(self, state, action, reward, next_state, done):
         """Saves a transition"""
-        
+        self.buffer.append(tuple(map(tuple, (state, action, reward, next_state, done))))
 
-    def sample(self):
+    def sample(self, batch_size, device):
         """Sample a batch of transitions"""
-        
+        transitions = random.sample(self.buffer, batch_size)
+        return (torch.tensor(x, dtype=torch.float, device=device)
+                for x in zip(*transitions))
 
     def __len__(self):
         return self.size
@@ -83,7 +85,7 @@ class DQN:
 
         ## TODO ##
         """Initialize replay buffer"""
-        #self._memory = ReplayMemory(...)
+        self._memory = ReplayMemory(capacity=args.capacity)
 
         ## config ##
         self.device = args.device
@@ -95,12 +97,17 @@ class DQN:
     def select_action(self, state, epsilon, action_space):
         '''epsilon-greedy based on behavior network'''
         ## TODO ##
+        if random.uniform(0, 1) < epsilon:
+            return action_space.sample()
+        else:
+            with torch.no_grad():
+                return self._behavior_net(state).argmax(dim=1)
         
 
-    def append(self, state, action, reward, done):
+    def append(self, state, action, reward, next_state, done):
         ## TODO ##
         """Push a transition into replay buffer"""
-        #self._memory.push(...)
+        self._memory.push(state, action, reward, next_state, done)
 
     def update(self, total_steps):
         if total_steps % self.freq == 0:
@@ -112,11 +119,22 @@ class DQN:
         # sample a minibatch of transitions
         state, action, reward, next_state, done = self._memory.sample()
         ## TODO ##
-        
+        q_value = self._behavior_net(state).gather(1, action)   # 根據選擇的action取得state對應的q_vlaue
+        with torch.no_grad():
+           q_next = self._target_net(next_state).max(1).values  # 取得各個state可獲得的最大q_value作為q_next
+           q_target = gamma*q_next + reward
+        criterion = nn.MSELoss()
+        loss = criterion(q_value, q_target)
+        # optimize
+        self._optimizer.zero_grad()
+        loss.backward()
+        nn.utils.clip_grad_norm_(self._behavior_net.parameters(), 5)
+        self._optimizer.step()
 
     def _update_target_network(self):
         '''update target network by copying from behavior network'''
         ## TODO ##
+        self._target_net.load_state_dict(self._behavior_net.state_dict())
         
 
     def save(self, model_path, checkpoint=False):
@@ -162,15 +180,16 @@ def train(args, agent, writer):
                 epsilon = max(epsilon, args.eps_min)
 
             # execute action
-            state, reward, done, _ = env.step(action)
+            next_state, reward, done, _ = env.step(action)
 
             ## TODO ##
             # store transition
-            #agent.append(...)
+            agent.append(state, action, reward, next_state, done)
 
             if total_steps >= args.warmup:
                 agent.update(total_steps)
 
+            state = next_state
             total_reward += reward
 
             if total_steps % args.eval_freq == 0:

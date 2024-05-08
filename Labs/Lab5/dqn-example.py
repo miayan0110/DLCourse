@@ -11,6 +11,7 @@ import gym
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
 
@@ -38,11 +39,19 @@ class Net(nn.Module):
     def __init__(self, state_dim=8, action_dim=4, hidden_dim=32):
         super().__init__()
         ## TODO ##
-        raise NotImplementedError
+        self.layer = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, action_dim)
+        )
+        # raise NotImplementedError
 
     def forward(self, x):
         ## TODO ##
-        raise NotImplementedError
+        return self.layer(x)
+        # raise NotImplementedError
 
 
 class DQN:
@@ -52,8 +61,8 @@ class DQN:
         # initialize target network
         self._target_net.load_state_dict(self._behavior_net.state_dict())
         ## TODO ##
-        # self._optimizer = ?
-        raise NotImplementedError
+        self._optimizer = optim.Adam(self._behavior_net.parameters(),lr=args.lr)
+        # raise NotImplementedError
         # memory
         self._memory = ReplayMemory(capacity=args.capacity)
 
@@ -66,8 +75,13 @@ class DQN:
 
     def select_action(self, state, epsilon, action_space):
         '''epsilon-greedy based on behavior network'''
-         ## TODO ##
-        raise NotImplementedError
+        ## TODO ##
+        if random.uniform(0, 1) < epsilon:
+            return action_space.sample()
+        else:
+            with torch.no_grad():
+                return self._behavior_net(state).argmax(dim=1)
+        # raise NotImplementedError
 
     def append(self, state, action, reward, next_state, done):
         self._memory.append(state, [action], [reward / 10], next_state,
@@ -82,16 +96,16 @@ class DQN:
     def _update_behavior_network(self, gamma):
         # sample a minibatch of transitions
         state, action, reward, next_state, done = self._memory.sample(
-            self.batch_size, self.device)
+            self.batch_size, self.device)                       # state、action、reward等，每個都是一個batch的資料 (tensor)
 
         ## TODO ##
-        # q_value = ?
-        # with torch.no_grad():
-        #    q_next = ?
-        #    q_target = ?
-        # criterion = ?
-        # loss = criterion(q_value, q_target)
-        raise NotImplementedError
+        q_value = self._behavior_net(state).gather(1, action)   # 根據選擇的action取得state對應的q_vlaue
+        with torch.no_grad():
+           q_next = self._target_net(next_state).max(1).values  # 取得各個state可獲得的最大q_value作為q_next
+           q_target = gamma*q_next + reward
+        criterion = nn.MSELoss()
+        loss = criterion(q_value, q_target)
+        # raise NotImplementedError
         # optimize
         self._optimizer.zero_grad()
         loss.backward()
@@ -101,7 +115,8 @@ class DQN:
     def _update_target_network(self):
         '''update target network by copying from behavior network'''
         ## TODO ##
-        raise NotImplementedError
+        self._target_net.load_state_dict(self._behavior_net.state_dict())
+        # raise NotImplementedError
 
     def save(self, model_path, checkpoint=False):
         if checkpoint:
@@ -172,13 +187,24 @@ def test(args, env, agent, writer):
     for n_episode, seed in enumerate(seeds):
         total_reward = 0
         env.seed(seed)
-        state = env.reset()
+        state = env.reset() # 初始化state
+        
         ## TODO ##
-        # ...
-        #     if done:
-        #         writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
-        #         ...
-        raise NotImplementedError
+        # 有了state之後，開始action
+        for t in itertools.count(start=1):  # while not done:
+            env.render()
+
+            # 選擇action
+            action = agent.select_action(state, epsilon, action_space)
+            # 執行action，得到下一個state和reward => 儲存reward
+            state, reward, done, _ = env.step(action)
+            total_reward += reward
+
+            if done:
+                rewards.append(total_reward)
+                writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
+                break
+        # raise NotImplementedError
     print('Average Reward', np.mean(rewards))
     env.close()
 
