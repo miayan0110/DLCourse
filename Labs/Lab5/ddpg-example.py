@@ -176,7 +176,8 @@ class DDPG:
         '''update target network by _soft_ copying from behavior network'''
         for target, behavior in zip(target_net.parameters(), net.parameters()):
             ## TODO ##
-            target.weight.data = tau*behavior.weight.data + (1-tau)*behavior.weight.data
+            '''weights_new = k*weights_old + (1-k)*weights_new'''
+            target = tau*behavior + (1-tau)*target
             # raise NotImplementedError
 
     def save(self, model_path, checkpoint=False):
@@ -254,11 +255,17 @@ def test(args, env, agent, writer):
         env.seed(seed)
         state = env.reset()
         ## TODO ##
-        # ...
-        #     if done:
-        #         writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
-        #         ...
-        raise NotImplementedError
+        for t in itertools.count(start=1):
+            env.render()
+
+            action = agent.select_action(state)
+            state, reward, done, _ = env.step(action)
+            total_reward += reward
+            
+            if done:
+                rewards.append(total_reward)
+                writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
+        # raise NotImplementedError
     print('Average Reward', np.mean(rewards))
     env.close()
 
