@@ -115,7 +115,8 @@ class DDPG:
         '''based on the behavior (actor) network and exploration noise'''
         ## TODO ##
         with torch.no_grad():
-            action = self._actor_net(state).argmax(dim=1)
+            action = self._actor_net(torch.from_numpy(state).unsqueeze(0).to(self.device))
+            action = action.cpu().detach().numpy().argmax()
             if noise:
                 return action + self._action_noise.sample()
             return action
@@ -145,11 +146,11 @@ class DDPG:
         ## update critic ##
         # critic loss
         ## TODO ##
-        q_value = critic_net(state, actor_net(state)).gather(1, action)
+        q_value = critic_net(state, actor_net(state)).gather(1, action.long())
         with torch.no_grad():
            a_next = target_actor_net(next_state)
            q_next = target_critic_net(next_state, a_next).max(1).values
-           q_target = gamma*q_next + reward
+           q_target = gamma*q_next*(1-done) + reward
         criterion = nn.MSELoss()
         critic_loss = criterion(q_value, q_target)
         # raise NotImplementedError
@@ -265,6 +266,7 @@ def test(args, env, agent, writer):
             if done:
                 rewards.append(total_reward)
                 writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
+                print(f'Episode: {n_episode}\tTotal reward: {total_reward}')
         # raise NotImplementedError
     print('Average Reward', np.mean(rewards))
     env.close()

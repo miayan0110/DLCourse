@@ -80,7 +80,8 @@ class DQN:
             return action_space.sample()
         else:
             with torch.no_grad():
-                return self._behavior_net(state).argmax(dim=1)
+                action = self._behavior_net(torch.from_numpy(state).unsqueeze(0).to(self.device))
+                return action.cpu().detach().numpy().argmax()  # 轉換成numpy array
         # raise NotImplementedError
 
     def append(self, state, action, reward, next_state, done):
@@ -99,10 +100,10 @@ class DQN:
             self.batch_size, self.device)                       # state、action、reward等，每個都是一個batch的資料 (tensor)
 
         ## TODO ##
-        q_value = self._behavior_net(state).gather(1, action)   # 根據選擇的action取得state對應的q_vlaue
+        q_value = self._behavior_net(state).gather(1, action.long())   # 根據選擇的action取得state對應的q_vlaue
         with torch.no_grad():
            q_next = self._target_net(next_state).max(1).values  # 取得各個state可獲得的最大q_value作為q_next
-           q_target = gamma*q_next + reward
+           q_target = gamma*q_next*(1-done) + reward
         criterion = nn.MSELoss()
         loss = criterion(q_value, q_target)
         # raise NotImplementedError
@@ -155,7 +156,7 @@ def train(args, env, agent, writer):
                 action = agent.select_action(state, epsilon, action_space)
                 epsilon = max(epsilon * args.eps_decay, args.eps_min)
             # execute action
-            next_state, reward, done, _ = env.step(action)
+            next_state, reward, done, _ = env.step(action)  # type(action)必須為numpy
             # store transition
             agent.append(state, action, reward, next_state, done)
             if total_steps >= args.warmup:
@@ -203,6 +204,7 @@ def test(args, env, agent, writer):
             if done:
                 rewards.append(total_reward)
                 writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
+                print(f'Episode: {n_episode}\tTotal reward: {total_reward}')
                 break
         # raise NotImplementedError
     print('Average Reward', np.mean(rewards))
