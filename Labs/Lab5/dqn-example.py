@@ -209,30 +209,34 @@ def test(args, env, agent, writer):
         # raise NotImplementedError
     print('Average Reward', np.mean(rewards))
     env.close()
+    return np.mean(rewards)
 
 
 def main():
     ## arguments ##
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('-d', '--device', default='cuda')
-    parser.add_argument('-m', '--model', default='dqn.pth')
+    parser.add_argument('-m', '--model', default='train/dqn/dqn.pth')
     parser.add_argument('--logdir', default='log/dqn')
     # train
     parser.add_argument('--warmup', default=10000, type=int)
-    parser.add_argument('--episode', default=1200, type=int)
+    parser.add_argument('--episode', default=875, type=int)
     parser.add_argument('--capacity', default=10000, type=int)
     parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--lr', default=.0005, type=float)
     parser.add_argument('--eps_decay', default=.995, type=float)
     parser.add_argument('--eps_min', default=.01, type=float)
     parser.add_argument('--gamma', default=.99, type=float)
-    parser.add_argument('--freq', default=4, type=int)
+    parser.add_argument('--freq', default=1, type=int)
     parser.add_argument('--target_freq', default=100, type=int)
     # test
     parser.add_argument('--test_only', action='store_true')
     parser.add_argument('--render', action='store_true')
     parser.add_argument('--seed', default=20200519, type=int)
     parser.add_argument('--test_epsilon', default=.001, type=float)
+    # save model
+    parser.add_argument('--tempModel', default='temp/dqn.pth')
+    parser.add_argument('--max_reward', default='train/dqn/max_reward.txt')
     args = parser.parse_args()
 
     ## main ##
@@ -240,10 +244,23 @@ def main():
     agent = DQN(args)
     writer = SummaryWriter(args.logdir)
     if not args.test_only:
+        agent.load(args.model)
         train(args, env, agent, writer)
-        agent.save(args.model)
-    agent.load(args.model)
-    test(args, env, agent, writer)
+        agent.save(args.tempModel)
+        agent.load(args.tempModel)
+        avg_reward = test(args, env, agent, writer)
+
+        with open(args.max_reward, 'r+') as f:
+            max_reward = float(f.read())
+            f.seek(0)
+            if avg_reward > max_reward:
+                f.truncate(0)
+                print('Saving model...')
+                f.write(avg_reward)
+                agent.save(args.model)
+    else:
+        agent.load(args.model)
+        test(args, env, agent, writer)
 
 
 if __name__ == '__main__':
