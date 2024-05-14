@@ -164,6 +164,7 @@ def train(args, agent, writer):
     action_space = env.action_space
     total_steps, epsilon = 0, 1.
     ewma_reward = 0
+    max_reward = 0
 
     for episode in range(args.episode):
         total_reward = 0
@@ -205,6 +206,11 @@ def train(args, agent, writer):
                 writer.add_scalar('Train/Ewma Reward', ewma_reward, episode)
                 print('Step: {}\tEpisode: {}\tLength: {:3d}\tTotal reward: {:.2f}\tEwma reward: {:.2f}\tEpsilon: {:.3f}'
                         .format(total_steps, episode, t, total_reward, ewma_reward, epsilon))
+                
+                if total_reward > max_reward:
+                    max_reward = total_reward
+                    print('Saving temp model...')
+                    agent.save(args.tempModel)
                 break
     env.close()
 
@@ -232,7 +238,19 @@ def test(args, agent, writer):
         e_rewards.append(e_reward)
 
     env.close()
-    print('Average Reward: {:.2f}'.format(float(sum(e_rewards)) / float(args.test_episode)))
+    avg_reward = float(sum(e_rewards)) / float(args.test_episode)
+    print('Average Reward: {:.2f}'.format(avg_reward))
+    return avg_reward
+
+def is_save_model(args, avg_reward):
+    with open(args.max_reward, 'r+') as f:
+            max_reward = float(f.read())
+            f.seek(0)                       # 將讀寫頭移動到檔案最初的位置
+            if avg_reward > max_reward:
+                f.truncate(0)               # 清除檔案內資料
+                f.write(avg_reward)
+                return True
+            return False
 
 
 def main():
@@ -255,11 +273,14 @@ def main():
     parser.add_argument('--eval_freq', default=200000, type=int)
     # test
     parser.add_argument('--test_only', action='store_true')
-    parser.add_argument('-tmp', '--test_model_path', default='ckpt/dqn_1000000.pt')
+    parser.add_argument('-tmp', '--test_model_path', default='train/dqn_breakout/ckpt/dqn_1000000.pt')
     parser.add_argument('--render', action='store_true')
     parser.add_argument('--test_episode', default=10, type=int)
     parser.add_argument('--seed', default=20230422, type=int)
     parser.add_argument('--test_epsilon', default=0.01, type=float)
+    # save model
+    parser.add_argument('--tempModel', default='temp/dqn_breakout.pth')
+    parser.add_argument('--max_reward', default='train/dqn_breakout/max_reward.txt')
     args = parser.parse_args()
 
     ## main ##
@@ -270,6 +291,12 @@ def main():
         test(args, agent, writer)
     else:
         train(args, agent, writer)
+        agent.load(args.tempModel)
+        avg_reward = test(args, agent, writer)
+
+        if is_save_model(args, avg_reward):
+            print('Saving model...')
+            agent.save(args.test_model_path)
         
 
 

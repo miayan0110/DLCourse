@@ -145,6 +145,8 @@ def train(args, env, agent, writer):
     action_space = env.action_space
     total_steps, epsilon = 0, 1.
     ewma_reward = 0
+    max_reward = 0
+
     for episode in range(args.episode):
         total_reward = 0
         state = env.reset()
@@ -175,6 +177,11 @@ def train(args, env, agent, writer):
                     'Step: {}\tEpisode: {}\tLength: {:3d}\tTotal reward: {:.2f}\tEwma reward: {:.2f}\tEpsilon: {:.3f}'
                     .format(total_steps, episode, t, total_reward, ewma_reward,
                             epsilon))
+                
+                if total_reward > max_reward:
+                    max_reward = total_reward
+                    print('Saving temp model...')
+                    agent.save(args.tempModel)
                 break
     env.close()
 
@@ -207,10 +214,20 @@ def test(args, env, agent, writer):
                 print(f'Episode: {n_episode}\tTotal reward: {total_reward}')
                 break
         # raise NotImplementedError
-    print('Average Reward', np.mean(rewards))
     env.close()
-    return np.mean(rewards)
+    avg_reward = np.mean(rewards)
+    print('Average Reward', avg_reward)
+    return avg_reward
 
+def is_save_model(args, avg_reward):
+    with open(args.max_reward, 'r+') as f:
+            max_reward = float(f.read())
+            f.seek(0)                       # 將讀寫頭移動到檔案最初的位置
+            if avg_reward > max_reward:
+                f.truncate(0)               # 清除檔案內資料
+                f.write(avg_reward)
+                return True
+            return False
 
 def main():
     ## arguments ##
@@ -246,18 +263,12 @@ def main():
     if not args.test_only:
         agent.load(args.model)
         train(args, env, agent, writer)
-        agent.save(args.tempModel)
         agent.load(args.tempModel)
         avg_reward = test(args, env, agent, writer)
 
-        with open(args.max_reward, 'r+') as f:
-            max_reward = float(f.read())
-            f.seek(0)
-            if avg_reward > max_reward:
-                f.truncate(0)
-                print('Saving model...')
-                f.write(avg_reward)
-                agent.save(args.model)
+        if is_save_model(args, avg_reward):
+            print('Saving model...')
+            agent.save(args.model)
     else:
         agent.load(args.model)
         test(args, env, agent, writer)

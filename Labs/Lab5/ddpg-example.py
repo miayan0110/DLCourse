@@ -214,6 +214,8 @@ def train(args, env, agent, writer):
     print('Start Training')
     total_steps = 0
     ewma_reward = 0
+    max_reward = 0
+
     for episode in range(args.episode):
         total_reward = 0
         state = env.reset()
@@ -243,6 +245,11 @@ def train(args, env, agent, writer):
                     'Step: {}\tEpisode: {}\tLength: {:3d}\tTotal reward: {:.2f}\tEwma reward: {:.2f}'
                     .format(total_steps, episode, t, total_reward,
                             ewma_reward))
+                
+                if total_reward > max_reward:
+                    max_reward = total_reward
+                    print('Saving temp model...')
+                    agent.save(args.tempModel)
                 break
     env.close()
 
@@ -268,15 +275,27 @@ def test(args, env, agent, writer):
                 writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
                 print(f'Episode: {n_episode}\tTotal reward: {total_reward}')
         # raise NotImplementedError
-    print('Average Reward', np.mean(rewards))
     env.close()
+    avg_reward = np.mean(rewards)
+    print('Average Reward', avg_reward)
+    return avg_reward
+
+def is_save_model(args, avg_reward):
+    with open(args.max_reward, 'r+') as f:
+            max_reward = float(f.read())
+            f.seek(0)                       # 將讀寫頭移動到檔案最初的位置
+            if avg_reward > max_reward:
+                f.truncate(0)               # 清除檔案內資料
+                f.write(avg_reward)
+                return True
+            return False
 
 
 def main():
     ## arguments ##
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('-d', '--device', default='cuda')
-    parser.add_argument('-m', '--model', default='ddpg.pth')
+    parser.add_argument('-m', '--model', default='train/ddpg/ddpg.pth')
     parser.add_argument('--logdir', default='log/ddpg')
     # train
     parser.add_argument('--warmup', default=10000, type=int)
@@ -291,6 +310,9 @@ def main():
     parser.add_argument('--test_only', action='store_true')
     parser.add_argument('--render', action='store_true')
     parser.add_argument('--seed', default=20200519, type=int)
+    # save model
+    parser.add_argument('--tempModel', default='temp/ddpg.pth')
+    parser.add_argument('--max_reward', default='train/ddpg/max_reward.txt')
     args = parser.parse_args()
 
     ## main ##
@@ -298,10 +320,17 @@ def main():
     agent = DDPG(args)
     writer = SummaryWriter(args.logdir)
     if not args.test_only:
+        agent.load(args.model)
         train(args, env, agent, writer)
-        agent.save(args.model)
-    agent.load(args.model)
-    test(args, env, agent, writer)
+        agent.load(args.tempModel)
+        avg_reward = test(args, env, agent, writer)
+
+        if is_save_model(args, avg_reward):
+            print('Saving model...')
+            agent.save(args.model)
+    else:
+        agent.load(args.model)
+        test(args, env, agent, writer)
 
 
 if __name__ == '__main__':
