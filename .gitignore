@@ -4,6 +4,7 @@
 *.npz
 *.pyc
 *.bmp
+*.png
 /Labs/Lab1/tester.ipynb
 Labs/Lab3/Lab3-Leukemia_Classification/debug
 Labs/Lab3/Lab3-Leukemia_Classification/models
