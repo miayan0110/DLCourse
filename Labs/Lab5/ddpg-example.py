@@ -115,11 +115,11 @@ class DDPG:
         '''based on the behavior (actor) network and exploration noise'''
         ## TODO ##
         with torch.no_grad():
-            action = self._actor_net(torch.from_numpy(state).unsqueeze(0).to(self.device))
-            action = action.cpu().detach().numpy().argmax()
+            action = self._actor_net(torch.from_numpy(state).to(self.device))
+            action = action.cpu().numpy()
             if noise:
                 return action + self._action_noise.sample()
-            return action
+            return np.clip(action, -1, 1)  # Clip actions to be within [-1, 1]
         # raise NotImplementedError
 
     def append(self, state, action, reward, next_state, done):
@@ -146,10 +146,10 @@ class DDPG:
         ## update critic ##
         # critic loss
         ## TODO ##
-        q_value = critic_net(state, actor_net(state)).gather(1, action.long())
+        q_value = critic_net(state, action)
         with torch.no_grad():
            a_next = target_actor_net(next_state)
-           q_next = target_critic_net(next_state, a_next).max(1).values
+           q_next = target_critic_net(next_state, a_next)
            q_target = gamma*q_next*(1-done) + reward
         criterion = nn.MSELoss()
         critic_loss = criterion(q_value, q_target)
@@ -164,7 +164,7 @@ class DDPG:
         # actor loss
         ## TODO ##
         action = actor_net(state)
-        actor_loss = (-1) * critic_net(state, action)
+        actor_loss = (-1) * critic_net(state, action).mean()    # loss必須是單一個值才能直接用.backward()
         # raise NotImplementedError
         # optimize actor
         actor_net.zero_grad()
@@ -178,7 +178,7 @@ class DDPG:
         for target, behavior in zip(target_net.parameters(), net.parameters()):
             ## TODO ##
             '''weights_new = k*weights_old + (1-k)*weights_new'''
-            target = tau*behavior + (1-tau)*target
+            target.data.copy_(tau*behavior.data + (1-tau)*target.data)
             # raise NotImplementedError
 
     def save(self, model_path, checkpoint=False):
@@ -214,11 +214,11 @@ def train(args, env, agent, writer):
     print('Start Training')
     total_steps = 0
     ewma_reward = 0
-    max_reward = 0
+    max_reward = -100.0
 
     for episode in range(args.episode):
         total_reward = 0
-        state = env.reset()
+        state = env.reset()[0]
         for t in itertools.count(start=1):
             # select action
             if total_steps < args.warmup:
@@ -226,7 +226,7 @@ def train(args, env, agent, writer):
             else:
                 action = agent.select_action(state)
             # execute action
-            next_state, reward, done, _ = env.step(action)
+            next_state, reward, done, _, _ = env.step(action)
             # store transition
             agent.append(state, action, reward, next_state, done)
             if total_steps >= args.warmup:
@@ -235,7 +235,7 @@ def train(args, env, agent, writer):
             state = next_state
             total_reward += reward
             total_steps += 1
-            if done:
+            if done or t > 1000:
                 ewma_reward = 0.05 * total_reward + (1 - 0.05) * ewma_reward
                 writer.add_scalar('Train/Episode Reward', total_reward,
                                   total_steps)
@@ -260,20 +260,21 @@ def test(args, env, agent, writer):
     rewards = []
     for n_episode, seed in enumerate(seeds):
         total_reward = 0
-        env.seed(seed)
-        state = env.reset()
+        state = env.reset(seed=seed)[0]
         ## TODO ##
         for t in itertools.count(start=1):
             env.render()
 
-            action = agent.select_action(state)
-            state, reward, done, _ = env.step(action)
+            action = agent.select_action(state, noise=False)
+            next_state, reward, done, _, _ = env.step(action)
+            state = next_state
             total_reward += reward
             
             if done:
                 rewards.append(total_reward)
                 writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
                 print(f'Episode: {n_episode}\tTotal reward: {total_reward}')
+                break
         # raise NotImplementedError
     env.close()
     avg_reward = np.mean(rewards)
@@ -299,7 +300,7 @@ def main():
     parser.add_argument('--logdir', default='log/ddpg')
     # train
     parser.add_argument('--warmup', default=10000, type=int)
-    parser.add_argument('--episode', default=1200, type=int)
+    parser.add_argument('--episode', default=800, type=int)
     parser.add_argument('--batch_size', default=64, type=int)
     parser.add_argument('--capacity', default=500000, type=int)
     parser.add_argument('--lra', default=1e-3, type=float)
@@ -308,6 +309,7 @@ def main():
     parser.add_argument('--tau', default=.005, type=float)
     # test
     parser.add_argument('--test_only', action='store_true')
+    parser.add_argument('--test_temp_only', action='store_true')
     parser.add_argument('--render', action='store_true')
     parser.add_argument('--seed', default=20200519, type=int)
     # save model
@@ -316,11 +318,25 @@ def main():
     args = parser.parse_args()
 
     ## main ##
+    # env = gym.make('LunarLanderContinuous-v2', render_mode='human')
     env = gym.make('LunarLanderContinuous-v2')
     agent = DDPG(args)
     writer = SummaryWriter(args.logdir)
-    if not args.test_only:
+    if args.test_only:
         agent.load(args.model)
+        test(args, env, agent, writer)
+    elif args.test_temp_only:
+        agent.load(args.tempModel)
+        avg_reward = test(args, env, agent, writer)
+
+        # if is_save_model(args, avg_reward):
+        #     print('Saving model...')
+        #     agent.save(args.model)
+    else:
+        try:
+            agent.load(args.model)
+        except:
+            pass
         train(args, env, agent, writer)
         agent.load(args.tempModel)
         avg_reward = test(args, env, agent, writer)
@@ -328,9 +344,6 @@ def main():
         if is_save_model(args, avg_reward):
             print('Saving model...')
             agent.save(args.model)
-    else:
-        agent.load(args.model)
-        test(args, env, agent, writer)
 
 
 if __name__ == '__main__':

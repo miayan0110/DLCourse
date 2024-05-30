@@ -168,7 +168,7 @@ def train(args, agent, writer):
 
     for episode in range(args.episode):
         total_reward = 0
-        state = env.reset()
+        state, _, _, _ = env.reset()
         state, reward, done, _ = env.step(1) # fire first !!!
 
         for t in itertools.count(start=1):
@@ -182,7 +182,7 @@ def train(args, agent, writer):
                 epsilon = max(epsilon, args.eps_min)
 
             # execute action
-            next_state, reward, done, _ = env.step(action)
+            next_state, reward, done, _, _ = env.step(action)
 
             ## TODO ##
             # store transition
@@ -200,7 +200,7 @@ def train(args, agent, writer):
                 agent.save(args.model + "dqn_" + str(total_steps) + ".pt")
 
             total_steps += 1
-            if done:
+            if done or t > 1000:
                 ewma_reward = 0.05 * total_reward + (1 - 0.05) * ewma_reward
                 writer.add_scalar('Train/Episode Reward', total_reward, episode)
                 writer.add_scalar('Train/Ewma Reward', ewma_reward, episode)
@@ -223,7 +223,7 @@ def test(args, agent, writer):
     e_rewards = []
     
     for i in range(args.test_episode):
-        state = env.reset()
+        state = env.reset()[0]
         e_reward = 0
         done = False
 
@@ -231,7 +231,7 @@ def test(args, agent, writer):
             time.sleep(0.01)
             env.render()
             action = agent.select_action(state, args.test_epsilon, action_space)
-            state, reward, done, _ = env.step(action)
+            state, reward, done, _, _ = env.step(action)
             e_reward += reward
 
         print('episode {}: {:.2f}'.format(i+1, e_reward))
@@ -273,7 +273,8 @@ def main():
     parser.add_argument('--eval_freq', default=200000, type=int)
     # test
     parser.add_argument('--test_only', action='store_true')
-    parser.add_argument('-tmp', '--test_model_path', default='train/dqn_breakout/ckpt/dqn_1000000.pt')
+    parser.add_argument('--test_temp_only', action='store_true')
+    parser.add_argument('-tmp', '--test_model_path', default='train/dqn_breakout/dqn_1000000.pt')
     parser.add_argument('--render', action='store_true')
     parser.add_argument('--test_episode', default=10, type=int)
     parser.add_argument('--seed', default=20230422, type=int)
@@ -289,7 +290,14 @@ def main():
     if args.test_only:
         agent.load(args.test_model_path)
         test(args, agent, writer)
+    elif args.test_temp_only:
+        agent.load(args.tempModel)
+        test(args, agent, writer)
     else:
+        try:
+            agent.load(args.test_model_path)
+        except:
+            pass
         train(args, agent, writer)
         agent.load(args.tempModel)
         avg_reward = test(args, agent, writer)

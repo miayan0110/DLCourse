@@ -149,7 +149,7 @@ def train(args, env, agent, writer):
 
     for episode in range(args.episode):
         total_reward = 0
-        state = env.reset()
+        state = env.reset()[0]
         for t in itertools.count(start=1):
             # select action
             if total_steps < args.warmup:
@@ -158,7 +158,7 @@ def train(args, env, agent, writer):
                 action = agent.select_action(state, epsilon, action_space)
                 epsilon = max(epsilon * args.eps_decay, args.eps_min)
             # execute action
-            next_state, reward, done, _ = env.step(action)  # type(action)必須為numpy
+            next_state, reward, done, _, _ = env.step(action)  # type(action)必須為numpy
             # store transition
             agent.append(state, action, reward, next_state, done)
             if total_steps >= args.warmup:
@@ -167,7 +167,7 @@ def train(args, env, agent, writer):
             state = next_state
             total_reward += reward
             total_steps += 1
-            if done:
+            if done or t > 1000:
                 ewma_reward = 0.05 * total_reward + (1 - 0.05) * ewma_reward
                 writer.add_scalar('Train/Episode Reward', total_reward,
                                   total_steps)
@@ -194,8 +194,7 @@ def test(args, env, agent, writer):
     rewards = []
     for n_episode, seed in enumerate(seeds):
         total_reward = 0
-        env.seed(seed)
-        state = env.reset() # 初始化state
+        state = env.reset(seed=seed)[0] # 初始化state
         
         ## TODO ##
         # 有了state之後，開始action
@@ -205,7 +204,7 @@ def test(args, env, agent, writer):
             # 選擇action
             action = agent.select_action(state, epsilon, action_space)
             # 執行action，得到下一個state和reward => 儲存reward
-            state, reward, done, _ = env.step(action)
+            state, reward, done, _, _ = env.step(action)
             total_reward += reward
 
             if done:
@@ -225,7 +224,7 @@ def is_save_model(args, avg_reward):
             f.seek(0)                       # 將讀寫頭移動到檔案最初的位置
             if avg_reward > max_reward:
                 f.truncate(0)               # 清除檔案內資料
-                f.write(avg_reward)
+                f.write(str(avg_reward))
                 return True
             return False
 
@@ -237,17 +236,18 @@ def main():
     parser.add_argument('--logdir', default='log/dqn')
     # train
     parser.add_argument('--warmup', default=10000, type=int)
-    parser.add_argument('--episode', default=875, type=int)
+    parser.add_argument('--episode', default=1200, type=int)
     parser.add_argument('--capacity', default=10000, type=int)
-    parser.add_argument('--batch_size', default=128, type=int)
+    parser.add_argument('--batch_size', default=256, type=int)
     parser.add_argument('--lr', default=.0005, type=float)
     parser.add_argument('--eps_decay', default=.995, type=float)
     parser.add_argument('--eps_min', default=.01, type=float)
     parser.add_argument('--gamma', default=.99, type=float)
-    parser.add_argument('--freq', default=1, type=int)
+    parser.add_argument('--freq', default=4, type=int)
     parser.add_argument('--target_freq', default=100, type=int)
     # test
     parser.add_argument('--test_only', action='store_true')
+    parser.add_argument('--test_temp_only', action='store_true')
     parser.add_argument('--render', action='store_true')
     parser.add_argument('--seed', default=20200519, type=int)
     parser.add_argument('--test_epsilon', default=.001, type=float)
@@ -257,10 +257,17 @@ def main():
     args = parser.parse_args()
 
     ## main ##
-    env = gym.make('LunarLander-v2')
+    env = gym.make('LunarLander-v2', render_mode='human')
+    # env = gym.make('LunarLander-v2')
     agent = DQN(args)
     writer = SummaryWriter(args.logdir)
-    if not args.test_only:
+    if args.test_only:
+        agent.load(args.model)
+        test(args, env, agent, writer)
+    elif args.test_temp_only:
+        agent.load(args.tempModel)
+        test(args, env, agent, writer)
+    else:
         agent.load(args.model)
         train(args, env, agent, writer)
         agent.load(args.tempModel)
@@ -269,9 +276,6 @@ def main():
         if is_save_model(args, avg_reward):
             print('Saving model...')
             agent.save(args.model)
-    else:
-        agent.load(args.model)
-        test(args, env, agent, writer)
 
 
 if __name__ == '__main__':
