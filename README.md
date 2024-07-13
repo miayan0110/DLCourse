@@ -7,4 +7,4 @@
 - More informations are in the slide and pdf in the Lab1 folder
 ### Code Instruction
 - Execute `Lab1.py` to train and test the model, you can also change hyperparameters in this file
-- Results of this lab and som other eperiments are in `report.pdf`
+- Results of this lab and some eperiments are in `report.pdf`
