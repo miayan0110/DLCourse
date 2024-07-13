@@ -181,7 +181,7 @@ if __name__ == '__main__':
   x, yhat = generate_linear(n=100)
 
   myNN = NeuralNetwork([2,3,3,1], 'sigmoid', 0.1)
-  myNN.train(x, yhat, 3000)
+  myNN.train(x, yhat, 9000)
   myNN.plot(myNN.trainLoss)
   pred_y = myNN.test(x, yhat)
   myNN.show_result(x, yhat, pred_y)
