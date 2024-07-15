@@ -9,6 +9,8 @@
 # ignore specific files in some folders
 Labs/Lab1/tester.ipynb
 
+Labs/Lab2/lab2/dataset
+
 Labs/Lab3/Lab3-Leukemia_Classification/C-NMC_Leukemia
 Labs/Lab3/Lab3-Leukemia_Classification/debug
 Labs/Lab3/Lab3-Leukemia_Classification/models
