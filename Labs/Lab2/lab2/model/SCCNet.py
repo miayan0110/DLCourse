@@ -32,7 +32,6 @@ class SCCNet(nn.Module):
 
         self.avgPool = nn.AvgPool2d(kernel_size=(1, 62), stride=(1, 12))
         self.fc = nn.Linear(in_features=704, out_features=numClasses)
-        self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x):
         x = self.layer1(x)  # torch.Size([1, 22, 22, 438])
@@ -41,7 +40,6 @@ class SCCNet(nn.Module):
 
         x = x.view(x.size(0), -1)   # torch.Size([1, 704])
         x = self.fc(x)
-        x = self.softmax(x)
         return x
 
     # if needed, implement the get_size method for the in channel of fc layer
