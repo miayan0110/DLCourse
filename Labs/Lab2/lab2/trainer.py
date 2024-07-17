@@ -1,11 +1,9 @@
 # implement your training script here
 import Dataloader as dl
-from model import SCCNet
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-import argparse
 from tqdm import tqdm
 
 class Trainer:
@@ -27,6 +25,9 @@ class Trainer:
     def train(self):
         losses = []
         acc = []
+        if self.args.train_mode == 'FT':
+            # load model here
+            self.load('LOSO')
 
         for i in range(self.args.epoch):
             epoch_loss = 0.0
@@ -45,13 +46,17 @@ class Trainer:
 
                 self.optimizer.step()
 
-                epoch_loss += loss
-                pred = pred.argmax(dim=1)
-                epoch_correct += (pred == label).sum()
-            print(f'[Epoch {i+1:3d} ] loss = {epoch_loss / len(dataloader):.9f} acc = {epoch_correct / len(dataloader.dataset)}')
-            losses.append(epoch_loss / len(dataloader))
-            acc.append(epoch_correct / len(dataloader.dataset))
+                epoch_loss += loss.item()
+                pred = torch.argmax(pred, dim=1)
+                epoch_correct += (pred == label).sum().item()
 
+            print(f'[Epoch {i+1:3d} ] loss = {epoch_loss / len(dataloader):.9f} acc = {epoch_correct*100 / len(dataloader.dataset)}')
+            losses.append(epoch_loss / len(dataloader))
+            acc.append(epoch_correct*100 / len(dataloader.dataset))
+
+            if acc.index(max(acc)) == i:
+                self.save()
+        return losses, acc
 
     def subjectDependent(self):
         return DataLoader(dataset=dl.MIBCI2aDataset(self.args.expri_mode, './dataset/SD')
@@ -64,41 +69,22 @@ class Trainer:
                           , shuffle=True)
 
     def withFinetune(self):
-        # load model here
         return DataLoader(dataset=dl.MIBCI2aDataset(self.args.expri_mode, './dataset/FT')
                           , batch_size=self.args.batch_size
                           , shuffle=True)
 
+    def load(self, method):
+        path = self.args.save_path + method + '.pth'
+
+        print(f'> Loading model from {path}...')
+        checkpoint = torch.load(path)
+        self.model.load_state_dict(checkpoint['model'])
+        self.optimizer.load_state_dict(checkpoint['optimizer'])
+
     def save(self):
-        path = self.save_path + self.train_mode + '.pth'
-        torch.save(self.model.state_dict(), path)
-        print(f'> Save model to {path}...')
+        path = self.args.save_path + self.args.train_mode + '.pth'
 
-
-def main(args):
-    if args.expri_mode == 'finetune' and args.train_mode != 'FT':
-        print('FT dataset should be used when experiment mode is finetune.')
-        return
-    elif args.expri_mode in ('train', 'test') and args.train_mode == 'FT':
-        print('FT dataset should not be used when training or testing.')
-        return
-    
-    model = SCCNet.SCCNet(numClasses=4, timeSample=288, Nu=22, C=1, Nc=22, Nt=1, dropoutRate=0.5).to(args.device)
-
-    trainer = Trainer(args, model=model)
-    trainer.train()
-
-
-if __name__ == '__main__':
-
-    parser = argparse.ArgumentParser(add_help=True)
-    parser.add_argument('--device',     type=str,   default='cuda')
-    parser.add_argument('--epoch',      type=int,   default=20)
-    parser.add_argument('--batch_size', type=int,   default=8)
-    parser.add_argument('--lr',         type=float, default=0.5)
-    parser.add_argument('--expri_mode', type=str,   default='train')    # train/finetune/test
-    parser.add_argument('--train_mode', type=str,   default='SD')       # SD/LOSO/FT
-    parser.add_argument('--save_path',  type=str,   default='./model/')
-
-    args = parser.parse_args()
-    main(args)
+        print(f'> Saving model to {path}...')
+        torch.save({'model': self.model.state_dict(),
+                    'optimizer': self.optimizer.state_dict()}
+                    , path)

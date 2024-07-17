@@ -5,6 +5,7 @@
 *.bmp
 *.png
 *.0
+*.pth
 
 # ignore specific files in some folders
 Labs/Lab1/tester.ipynb
