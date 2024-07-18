@@ -11,35 +11,40 @@ class SquareLayer(nn.Module):
         return torch.square(x)
 
 class SCCNet(nn.Module):
-    def __init__(self, numClasses=0, timeSample=0, Nu=0, C=0, Nc=0, Nt=0, dropoutRate=0):
+    def __init__(self, numClasses=4, timeSample=438, Nu=22, C=1, Nc=20, Nt=1, dropoutRate=0.5):
         super(SCCNet, self).__init__()
 
-        self.timeSample = timeSample
-
         self.layer1 = nn.Sequential(
-            nn.Conv2d(in_channels=C, out_channels=Nu, kernel_size=(C, Nt), padding=(0, Nt//2)),
+            nn.Conv2d(in_channels=C, out_channels=Nu, kernel_size=(C, Nt)),
             nn.BatchNorm2d(num_features=Nu),
-            SquareLayer(),
             nn.Dropout(dropoutRate)
         )
 
         self.layer2 = nn.Sequential(
-            nn.Conv2d(in_channels=Nu, out_channels=Nc, kernel_size=(Nu, 12), padding=(0, 6)),
+            nn.Conv2d(in_channels=Nu, out_channels=Nc, kernel_size=(Nu, 12)),
             nn.BatchNorm2d(num_features=Nc),
             SquareLayer(),
             nn.Dropout(dropoutRate)
         )
 
-        self.avgPool = nn.AvgPool2d(kernel_size=(1, 62), stride=(1, 12))
-        self.fc = nn.Linear(in_features=704, out_features=numClasses)
+        self.avgPool = nn.AvgPool2d(kernel_size=(1, 62))
+        self.fc = nn.Linear(in_features=120, out_features=numClasses)
+        self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x):
-        x = self.layer1(x)  # torch.Size([1, 22, 22, 438])
-        x = self.layer2(x)  # torch.Size([1, 22, 1, 439])
-        x = self.avgPool(x) # torch.Size([1, 22, 1, 32])
+        # print(x.shape)
+        x = self.layer1(x)  # torch.Size([batch_size, 22, 22, 438])
+        # print(x.shape)
+        x = torch.permute(x, (0, 2, 1, 3))
+        # print(x.shape)
+        x = self.layer2(x)  # torch.Size([batch_size, 20, 1, 427])
+        # print(x.shape)
+        x = self.avgPool(x) # torch.Size([batch_size, 20, 1, 6])
+        # print(x.shape)
 
-        x = x.view(x.size(0), -1)   # torch.Size([1, 704])
+        x = x.view(x.size(0), -1)   # torch.Size([batch_size, 120])
         x = self.fc(x)
+        x = self.softmax(x)
         return x
 
     # if needed, implement the get_size method for the in channel of fc layer
