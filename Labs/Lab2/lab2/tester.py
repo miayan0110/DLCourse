@@ -22,7 +22,9 @@ class Tester:
     def test(self):
         losses = 0.0
         correct = 0
-        self.load()
+
+        if not self.args.use_current_model:
+            self.load()
         self.model.eval()
 
         dataloader = self.training_method()
@@ -39,20 +41,21 @@ class Tester:
                 correct += (pred == label).sum().item()
             
             print(f'loss = {losses / len(dataloader):.9f} acc = {correct*100 / len(dataloader.dataset)}')
+            return correct*100 / len(dataloader.dataset)
 
     def load(self):
-        path = self.args.save_path+self.args.train_mode+'.pth'
+        path = self.args.save_path + self.args.train_mode + self.args.test_model + '.pth'
         
         print(f'> Loading model from {path}...')
         checkpoint = torch.load(path)
         self.model.load_state_dict(checkpoint['model'])
 
     def subjectDependent(self):
-        return DataLoader(dataset=dl.MIBCI2aDataset(self.args.expri_mode, './dataset/SD')
+        return DataLoader(dataset=dl.MIBCI2aDataset('test', './dataset/SD')
                           , batch_size=self.args.batch_size
                           , shuffle=True)
 
     def leaveOneSubjectOut(self):
-        return DataLoader(dataset=dl.MIBCI2aDataset(self.args.expri_mode, './dataset/LOSO')
+        return DataLoader(dataset=dl.MIBCI2aDataset('test', './dataset/LOSO')
                           , batch_size=self.args.batch_size
                           , shuffle=True)

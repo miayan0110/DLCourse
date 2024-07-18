@@ -1,5 +1,6 @@
 # implement your training script here
 import Dataloader as dl
+from tester import Tester
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -16,15 +17,16 @@ class Trainer:
         assert self.args.train_mode in ['SD', 'LOSO', 'FT']
         match self.args.train_mode:
             case 'SD':
-                self.training_method = self.subjectDependent
+                self.training_set = self.subjectDependent
             case 'LOSO':
-                self.training_method = self.leaveOneSubjectOut
+                self.training_set = self.leaveOneSubjectOut
             case 'FT':
-                self.training_method = self.withFinetune
+                self.training_set = self.withFinetune
 
     def train(self):
         losses = []
         acc = []
+        test_acc = 0.0
         if self.args.train_mode == 'FT':
             # load model here
             self.load('LOSO')
@@ -32,7 +34,7 @@ class Trainer:
         for i in range(self.args.epoch):
             epoch_loss = 0.0
             epoch_correct = 0.0
-            dataloader = self.training_method()
+            dataloader = self.training_set()
             self.model.train()
 
             for feature, label in tqdm(dataloader):
@@ -54,9 +56,28 @@ class Trainer:
             losses.append(epoch_loss / len(dataloader))
             acc.append(epoch_correct*100 / len(dataloader.dataset))
 
-            if acc.index(max(acc)) == i:
+            new_test_acc = self.getTestAccuracy()
+            if new_test_acc > test_acc:
+                test_acc = new_test_acc
                 self.save()
         return losses, acc
+    
+    # def validation(self, feature, label):
+    #     self.model.eval()
+    #     with torch.no_grad():
+    #         feature = feature.to(self.args.device)
+    #         label = label.squeeze(1).to(self.args.device)
+
+    #         pred = self.model(feature)
+    #         loss = self.loss_function(pred, label)
+
+    #         pred = pred.argmax(dim=1)
+    #         correct += (pred == label).sum().item()
+    #         print(f'loss = {loss:.9f} acc = {correct*100 / len(label)}')
+
+    def getTestAccuracy(self):
+        tester = Tester(self.args, model=self.model)
+        return tester.test()
 
     def subjectDependent(self):
         return DataLoader(dataset=dl.MIBCI2aDataset(self.args.expri_mode, './dataset/SD')
