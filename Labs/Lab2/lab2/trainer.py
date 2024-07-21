@@ -27,13 +27,15 @@ class Trainer:
         losses = []
         acc = []
         test_acc = 0.0
+        best_test_acc_at_epoch = 0
+        # load model here when fine tuning
         if self.args.train_mode == 'FT':
-            # load model here
             self.load('LOSO')
 
+        # start training
         for i in range(self.args.epoch):
-            epoch_loss = 0.0
-            epoch_correct = 0.0
+            cost = 0.0
+            correct = 0.0
             dataloader = self.training_set()
             self.model.train()
 
@@ -48,32 +50,24 @@ class Trainer:
 
                 self.optimizer.step()
 
-                epoch_loss += loss.item()
+                # calculating epoch loss and accuracy 
+                cost += loss.item()
                 pred = torch.argmax(pred, dim=1)
-                epoch_correct += (pred == label).sum().item()
+                correct += (pred == label).sum().item()
 
-            print(f'[Epoch {i+1:3d} ] loss = {epoch_loss / len(dataloader):.9f} acc = {epoch_correct*100 / len(dataloader.dataset)}')
-            losses.append(epoch_loss / len(dataloader))
-            acc.append(epoch_correct*100 / len(dataloader.dataset))
+            epoch_loss = cost / len(dataloader)
+            epoch_acc = correct*100 / len(dataloader.dataset)
+            print(f'[Epoch {i+1:3d} ] loss = {epoch_loss:.9f} acc = {epoch_acc}')
+            losses.append(epoch_loss)
+            acc.append(epoch_acc)
 
+            # save model
             new_test_acc = self.getTestAccuracy()
             if new_test_acc > test_acc:
                 test_acc = new_test_acc
+                best_test_acc_at_epoch = i
                 self.save()
-        return losses, acc
-    
-    # def validation(self, feature, label):
-    #     self.model.eval()
-    #     with torch.no_grad():
-    #         feature = feature.to(self.args.device)
-    #         label = label.squeeze(1).to(self.args.device)
-
-    #         pred = self.model(feature)
-    #         loss = self.loss_function(pred, label)
-
-    #         pred = pred.argmax(dim=1)
-    #         correct += (pred == label).sum().item()
-    #         print(f'loss = {loss:.9f} acc = {correct*100 / len(label)}')
+        return losses, acc, best_test_acc_at_epoch
 
     def getTestAccuracy(self):
         tester = Tester(self.args, model=self.model)

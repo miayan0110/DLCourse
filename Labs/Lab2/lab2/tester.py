@@ -15,19 +15,20 @@ class Tester:
         assert self.args.train_mode in ['SD', 'LOSO', 'FT']
         match self.args.train_mode:
             case 'SD':
-                self.training_method = self.subjectDependent
+                self.training_set = self.subjectDependent
             case 'LOSO'|'FT':
-                self.training_method = self.leaveOneSubjectOut
+                self.training_set = self.leaveOneSubjectOut
 
     def test(self):
         losses = 0.0
         correct = 0
 
+        # if test is called during training, do not load new model, use current model to do the test
         if not self.args.use_current_model:
             self.load()
         self.model.eval()
 
-        dataloader = self.training_method()
+        dataloader = self.training_set()
         with torch.no_grad():
             for feature, label in tqdm(dataloader):
                 feature = feature.to(self.args.device)

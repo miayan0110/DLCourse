@@ -21,7 +21,7 @@ class SCCNet(nn.Module):
         )
 
         self.layer2 = nn.Sequential(
-            nn.Conv2d(in_channels=1, out_channels=Nc, kernel_size=(Nu, 12), padding=(0, 6)),
+            nn.Conv2d(in_channels=22-C+1, out_channels=Nc, kernel_size=(Nu, 12), padding=(0, 6)),
             nn.BatchNorm2d(num_features=Nc),
             SquareLayer(),
             nn.Dropout(dropoutRate)
@@ -32,17 +32,12 @@ class SCCNet(nn.Module):
         self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x):
-        # print(x.shape)  # (batch_size, 1, 22, 438)
+        # (batch_size, 1, 22, 438)
         x = self.layer1(x)  # (batch_size, 22, 1, 438)
-        # print(x.shape)
         x = torch.permute(x, (0, 2, 1, 3))  # (batch_size, 1, 22, 438)
-        # print(x.shape)
         x = self.layer2(x)  # (batch_size, 20, 1, 427)
-        # print(x.shape)
         x = torch.permute(x, (0, 2, 1, 3))  # (batch_size, 1, 20, 439)
-        # print(x.shape)
         x = self.avgPool(x) # (batch_size, 1, 20, 32)
-        # print(x.shape)
 
         x = x.view(x.size(0), -1)   # (batch_size, 640)
         x = self.fc(x)

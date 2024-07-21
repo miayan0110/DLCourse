@@ -27,11 +27,13 @@ def main(args):
         return
     
     model = SCCNet.SCCNet(numClasses=4, timeSample=438, Nu=22, C=22, Nc=20, Nt=1, dropoutRate=0.5).to(args.device)
+    # model = SCCNet.SCCNet(numClasses=4, timeSample=438, Nu=22, C=1, Nc=20, Nt=1, dropoutRate=0.5).to(args.device)
 
     if args.expri_mode != 'test':
         print('Start training...')
         trainer = Trainer(args, model=model)
-        train_loss, train_acc = trainer.train()
+        train_loss, train_acc, best_test_acc_at_epoch = trainer.train()
+        print(f'======= Best test accuracy at epoch {best_test_acc_at_epoch} =======')
         plot(args, train_loss, train_acc)
 
         args.expri_mode = 'test'
@@ -45,13 +47,13 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument('--device',     type=str,   default='cuda')
-    parser.add_argument('--epoch',      type=int,   default=1000)
+    parser.add_argument('--epoch',      type=int,   default=1500)
     parser.add_argument('--batch_size', type=int,   default=16)
     parser.add_argument('--lr',         type=float, default=0.001)
     parser.add_argument('--expri_mode', type=str,   default='test')    # train/finetune/test
     parser.add_argument('--train_mode', type=str,   default='SD')       # SD/LOSO/FT
-    parser.add_argument('--test_model', type=str,   default='_61')
-    parser.add_argument('--use_current_model',  type=bool,  default=False)
+    parser.add_argument('--test_model', type=str,   default='', help='the addition part of name of the model you want to test, ex. LOSO_best.pth, set this argument to _best')
+    parser.add_argument('--use_current_model',  type=bool,  default=False,  help='use True in training, False in testing')
     parser.add_argument('--save_path',  type=str,   default='./model/')
 
     args = parser.parse_args()
