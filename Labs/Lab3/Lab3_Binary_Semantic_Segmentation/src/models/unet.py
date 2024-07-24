@@ -28,23 +28,23 @@ class UNet(nn.Module):
         super(UNet, self).__init__()
         
         self.in_features = in_features
-        self.conv1 = Conv2dBlock(1, in_features, kernel_size=3)
+        self.conv1 = Conv2dBlock(3, in_features, kernel_size=3)
         
-        up_layers = []
+        net_layers = []
         for i in range(1, layers):
             if i < int(layers/2):
-                up_layers.append(Conv2dBlock(self.in_features, self.in_features*2, kernel_size=3))
-                up_layers.append(nn.MaxPool2d(kernel_size=2, stride=2))
-                self.in_features = self.in_features*2
+                net_layers.append(Conv2dBlock(self.in_features, self.in_features*2, kernel_size=3))
+                net_layers.append(nn.MaxPool2d(kernel_size=2, stride=2))
+                self.in_features *= 2
             elif i > int(layers/2):
-                up_layers.append(nn.Conv2d(self.in_features, self.in_features, kernel_size=2))
-                up_layers.append(Conv2dBlock(self.in_features, int(self.in_features*0.5), kernel_size=2))                
+                net_layers.append(nn.Conv2d(self.in_features, self.in_features, kernel_size=2))
+                net_layers.append(Conv2dBlock(self.in_features, int(self.in_features*0.5), kernel_size=2))                
                 self.in_features = int(self.in_features*0.5)
             else:
-                up_layers.append(Conv2dBlock(self.in_features, self.in_features*2, kernel_size=3))
-                self.in_features = self.in_features*2
+                net_layers.append(Conv2dBlock(self.in_features, self.in_features*2, kernel_size=3))
+                self.in_features *= 2
 
-        self.net = nn.Sequential(*up_layers)
+        self.net = nn.Sequential(*net_layers)
         self.classifier = nn.Conv2d(self.in_features, 2, kernel_size=1)
 
     def forward(self, x):
