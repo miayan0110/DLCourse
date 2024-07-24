@@ -1,10 +1,11 @@
 # Implement your ResNet34_UNet model here
-
-# assert False, "Not implemented yet!"
-
 import torch
 import torch.nn as nn
 
+# class ChannelAttention, SpatialAttention, CBAM is referenced from the following site:
+# https://arxiv.org/pdf/1807.06521
+# https://github.com/luuuyi/CBAM.PyTorch/tree/master
+# https://blog.csdn.net/weixin_41790863/article/details/123413303
 class ChannelAttention(nn.Module):
     def __init__(self, channels, ratio=2) -> None:
         super(ChannelAttention, self).__init__()
@@ -95,6 +96,7 @@ class UNet_ResNet34(nn.Module):
                 net_layers.append(Res34Block(self.in_features, self.in_features*2, up_sample=False))
                 self.in_features *= 2
             elif i > int(unet_layers/2):
+                net_layers.append(nn.ConvTranspose2d(self.in_features, int(self.in_features*0.5), kernel_size=3))
                 net_layers.append(Res34Block(self.in_features, int(self.in_features*0.5), up_sample=True))
                 self.in_features = int(self.in_features*0.5)
             else:
@@ -103,7 +105,9 @@ class UNet_ResNet34(nn.Module):
 
         self.net = nn.Sequential(*net_layers)
         self.conv3 = nn.Sequential(
+            nn.ConvTranspose2d(self.in_features, int(self.in_features*0.5), kernel_size=3),
             Res34Block(self.in_features, self.in_features, up_sample=True),
+            nn.ConvTranspose2d(self.in_features, int(self.in_features*0.5), kernel_size=3),
             Res34Block(self.in_features, self.in_features, up_sample=True),
             Res34Block(self.in_features, 1, up_sample=False),
         )
