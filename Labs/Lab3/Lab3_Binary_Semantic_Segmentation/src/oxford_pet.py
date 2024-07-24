@@ -130,5 +130,6 @@ def extract_archive(filepath):
 
 def load_dataset(data_path, mode):
     # implement the load dataset function here
-
-    assert False, "Not implemented yet!"
+    dataset = SimpleOxfordPetDataset(data_path, mode)
+    return dataset
+    # assert False, "Not implemented yet!"
