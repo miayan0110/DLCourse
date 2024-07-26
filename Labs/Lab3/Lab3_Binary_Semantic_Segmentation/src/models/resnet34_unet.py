@@ -1,13 +1,14 @@
 # Implement your ResNet34_UNet model here
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 # class ChannelAttention, SpatialAttention, CBAM is referenced from the following site:
 # https://arxiv.org/pdf/1807.06521
 # https://github.com/luuuyi/CBAM.PyTorch/tree/master
 # https://blog.csdn.net/weixin_41790863/article/details/123413303
 class ChannelAttention(nn.Module):
-    def __init__(self, channels, ratio=2) -> None:
+    def __init__(self, channels, ratio=16) -> None:
         super(ChannelAttention, self).__init__()
 
         self.maxpool = nn.AdaptiveMaxPool2d(1)
@@ -30,7 +31,7 @@ class SpatialAttention(nn.Module):
     def __init__(self) -> None:
         super(SpatialAttention, self).__init__()
 
-        self.conv = nn.Conv2d(in_channels=2, out_channels=1, kernel_size=7)
+        self.conv = nn.Conv2d(in_channels=2, out_channels=1, kernel_size=7, stride=1, padding=3)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
@@ -52,71 +53,134 @@ class CBAM(nn.Module):
         out = self.spatial_attention(out) * out
         return out
 
-class Res34Block(nn.Module):
-    def __init__(self, in_feature, out_feature, up_sample) -> None:
-        super(Res34Block, self).__init__()
+class UnetConv(nn.Module):
+    def __init__(self, in_channels, out_channels) -> None:
+        super(UnetConv, self).__init__()
 
-        self.is_up_sample = up_sample
-
-        self.conv1 = nn.Conv2d(in_feature, in_feature, kernel_size=3)
-        self.relu1 = nn.ReLU()
-        self.bn1 = nn.BatchNorm2d(in_feature)
-        self.conv2 = nn.Conv2d(in_feature, out_feature, kernel_size=3)
-        if self.is_up_sample:
-            self.cbam = CBAM(out_feature)
-        self.relu2 = nn.ReLU()
-        self.bn2 = nn.BatchNorm2d(out_feature)
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=out_channels, out_channels=out_channels, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU()
+        )
 
     def forward(self, x):
+        x = self.conv(x)
+        return x
+
+class DecoderBlock(nn.Module):
+    def __init__(self, in_channels, out_channels) -> None:
+        super(DecoderBlock, self).__init__()
+
+        self.upconv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2)
+        self.unetconv = UnetConv(in_channels, out_channels)
+        self.cbam = CBAM(out_channels)
+    
+    def forward(self, x, prev_x):
+        x = self.upconv(x)
+
+        diffY = x.size()[2] - prev_x.size()[2]
+        diffX = x.size()[3] - prev_x.size()[3]
+        prev_x = F.pad(prev_x, [diffX // 2, diffX - diffX // 2,
+                        diffY // 2, diffY - diffY // 2])
+        
+        x = torch.cat([prev_x, x], dim=1)
+        
+        x = self.unetconv(x)
+        x = self.cbam(x)
+        return x
+    
+
+class ResBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, is_downsample=False) -> None:
+        super(ResBlock, self).__init__()
+        self.is_downsample = is_downsample
+
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.relu1 = nn.ReLU()
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size, stride=1, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+        self.relu2 = nn.ReLU()
+        if self.is_downsample:
+            self.downsample = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=2, bias=False),
+                nn.BatchNorm2d(out_channels)
+            )
+
+    def forward(self, x):
+        sample = x
         out = self.conv1(x)
-        out = self.relu1(out)
         out = self.bn1(out)
+        out = self.relu1(out)
         out = self.conv2(out)
-
-        if self.is_up_sample:
-            out = self.cbam(out)
-
-        out += x 
-        out = self.relu2(out)
         out = self.bn2(out)
+
+        if self.is_downsample:
+            sample = self.downsample(x)
+
+        out += sample
+        out = self.relu2(out)
         return out
 
-class UNet_ResNet34(nn.Module):
-    def __init__(self, in_features, unet_layers) -> None:
-        super(UNet_ResNet34, self).__init__()
+class EncoderBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, total_blocks, is_downsample=True) -> None:
+        super(EncoderBlock, self).__init__()
 
-        self.in_features = in_features
-        self.conv1 = nn.Conv2d(3, in_features, kernel_size=7, stride=2)
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2)
-        self.conv2 = nn.Conv2d(in_features, in_features, kernel_size=3)
+        blocks = []
+        blocks.append(ResBlock(in_channels, out_channels, kernel_size=3, stride=1+1*is_downsample, is_downsample=is_downsample))
+        for _ in range(1, total_blocks):
+            blocks.append(ResBlock(out_channels, out_channels, kernel_size=3, stride=1))
+        
+        self.layer = nn.Sequential(*blocks)
 
-        net_layers = []
-        for i in range(unet_layers):
-            if i < int(unet_layers/2):
-                net_layers.append(Res34Block(self.in_features, self.in_features*2, up_sample=False))
-                self.in_features *= 2
-            elif i > int(unet_layers/2):
-                net_layers.append(nn.ConvTranspose2d(self.in_features, int(self.in_features*0.5), kernel_size=3))
-                net_layers.append(Res34Block(self.in_features, int(self.in_features*0.5), up_sample=True))
-                self.in_features = int(self.in_features*0.5)
-            else:
-                net_layers.append(Res34Block(self.in_features, int(self.in_features*0.5), up_sample=False))
-                self.in_features = int(self.in_features*0.5)
+    def forward(self, x):
+        x = self.layer(x)
+        return x
 
-        self.net = nn.Sequential(*net_layers)
-        self.conv3 = nn.Sequential(
-            nn.ConvTranspose2d(self.in_features, int(self.in_features*0.5), kernel_size=3),
-            Res34Block(self.in_features, self.in_features, up_sample=True),
-            nn.ConvTranspose2d(self.in_features, int(self.in_features*0.5), kernel_size=3),
-            Res34Block(self.in_features, self.in_features, up_sample=True),
-            Res34Block(self.in_features, 1, up_sample=False),
+
+class ResNet34_UNet(nn.Module):
+    def __init__(self, in_channels) -> None:
+        super(ResNet34_UNet, self).__init__()
+
+        self.in_conv = nn.Sequential(
+            nn.Conv2d(in_channels, 64, kernel_size=7, stride=2),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=3, stride=2)
+        )
+
+        self.enc1 = EncoderBlock(64, 64, total_blocks=3, is_downsample=False)
+        self.enc2 = EncoderBlock(64, 128, total_blocks=4)
+        self.enc3 = EncoderBlock(128, 256, total_blocks=6)
+        self.enc4 = EncoderBlock(256, 512, total_blocks=3)
+
+        self.dec1 = DecoderBlock(512, 256)
+        self.dec2 = DecoderBlock(256, 128)
+        self.dec3 = DecoderBlock(128, 64)
+        self.upsample1 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
+        self.upconv = UnetConv(32, 32)
+
+        self.out_conv = nn.Sequential(
+            nn.ConvTranspose2d(32, 32, kernel_size=2, stride=2),
+            UnetConv(32, 1),
+            nn.Sigmoid()
         )
         
     def forward(self, x):
-        x = self.conv1(x)
-        x = self.maxpool(x)
-        x = self.conv2(2)
-        x = self.net(x)
-        x = self.conv3(x)
+        x1 = self.in_conv(x)
+        x2 = self.enc1(x1)
+        x3 = self.enc2(x2)
+        x4 = self.enc3(x3)
+        x5 = self.enc4(x4)
 
+        x = self.dec1(x5, x4)
+        x = self.dec2(x, x3)
+        x = self.dec3(x, x2)
+        x = self.upsample1(x)
+        x = self.upconv(x)
+
+        x = self.out_conv(x)
         return x

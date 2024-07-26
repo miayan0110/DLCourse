@@ -128,8 +128,17 @@ def extract_archive(filepath):
     if not os.path.exists(dst_dir):
         shutil.unpack_archive(filepath, extract_dir)
 
+
+def transform(image, mask, trimap):
+    if np.random.rand() < 0.5:
+        image = np.fliplr(image).copy()
+        mask = np.fliplr(mask).copy()
+        trimap = np.fliplr(trimap).copy()
+    return {'image': image, 'mask': mask, 'trimap': trimap}
+
 def load_dataset(data_path, mode):
     # implement the load dataset function here
-    dataset = SimpleOxfordPetDataset(data_path, mode)
+    transformer = transform
+
+    dataset = SimpleOxfordPetDataset(data_path, mode, transformer)
     return dataset
-    # assert False, "Not implemented yet!"

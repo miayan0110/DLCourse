@@ -13,14 +13,14 @@ from utils import *
 def train(args):
     # implement the training function here
     train_dataloader = DataLoader(opData.load_dataset(args.data_path, 'train'), batch_size=args.batch_size, shuffle=True)
-    valid_dataset = opData.load_dataset(args.data_path, 'valid')
+    valid_dataloader = DataLoader(opData.load_dataset(args.data_path, 'valid'), batch_size=args.batch_size, shuffle=True)
 
     if args.model == 'unet':
-        model = unet.UNet(64, 9).to(args.device)
+        model = unet.UNet(3).to(args.device)
     elif args.model == 'resnet':
-        model = resnet34_unet.UNet_ResNet34(64, 7).to(args.device)
+        model = resnet34_unet.ResNet34_UNet(3).to(args.device)
 
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCELoss()
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
     # start training
@@ -29,11 +29,12 @@ def train(args):
     max_score = 0
     model.train()
     for epoch in range(args.epochs):
-        epoch_cost = 0
-        epoch_score = 0
+      
+        epoch_cost = []
+        epoch_score = []
         for sample in tqdm(train_dataloader):
-            img = torch.tensor(sample['image']).float().to(args.device)
-            mask = torch.tensor(sample['mask']).long().to(args.device)
+            img = torch.Tensor(sample['image']).float().to(args.device)
+            mask = torch.Tensor(sample['mask']).float().to(args.device)
             optimizer.zero_grad()
 
             pred = model(img)
@@ -41,26 +42,29 @@ def train(args):
             loss.backward()
             optimizer.step()
 
-            epoch_cost += loss
-            epoch_score += dice_score(pred, mask)
-        losses.append(epoch_cost/len(train_dataloader))
-        scores.append(epoch_score/len(train_dataloader))
-        print(f'[Epoch {epoch}] loss = {losses[epoch]:.9f}, average dice score = {scores[epoch]:.9f}')
+            epoch_cost.append(loss)
+            epoch_score.append(dice_score(pred, mask))
+        
+        losses.append((sum(epoch_cost)/len(epoch_cost)).item())
+        scores.append((sum(epoch_score)/len(epoch_score)).item())
+        print(f'[Epoch {epoch+1}] loss = {losses[epoch]:.9f}, average dice score = {scores[epoch]:.9f}')
 
-    # validation
-    valid_score =evaluate(model, valid_dataset, args.device)
-    if valid_score > max_score:
-        save_model(f'{args.save_path + args.model}.pth', model)
-        max_score = valid_score
+        # validation
+        valid_score = evaluate(model, valid_dataloader, args.device)
+        print(f'validation dice score = {valid_score}')
+        if valid_score > max_score:
+            save_model(f'{args.save_path + args.model}.pth', model, optimizer, epoch)
+            max_score = valid_score
+    plot_loss(losses, args.model)
 
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks')
     parser.add_argument('--data_path',              type=str,   default='./dataset/', help='path of the input data')
-    parser.add_argument('--epochs', '-e',           type=int,   default=5, help='number of epochs')
+    parser.add_argument('--epochs', '-e',           type=int,   default=2, help='number of epochs')
     parser.add_argument('--batch_size', '-b',       type=int,   default=1, help='batch size')
     parser.add_argument('--learning_rate', '-lr',   type=float, default=1e-5, help='learning rate')
-    parser.add_argument('--model','-m',             type=str,   default='unet', help='model to train (unet/resnet)')
+    parser.add_argument('--model','-m',             type=str,   default='resnet', help='model to train (unet/resnet)')
     parser.add_argument('--device','-d',            type=str,   default='cuda', help='the device models train on')
     parser.add_argument('--save_path','-p',         type=str,   default='./saved_models/', help='the device models train on')
 
@@ -68,3 +72,6 @@ def get_args():
  
 if __name__ == "__main__":
     args = get_args()
+    # opData.SimpleOxfordPetDataset.download(args.data_path)
+
+    train(args)

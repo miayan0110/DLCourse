@@ -1,19 +1,17 @@
 import torch
-from torch.utils.data import DataLoader
 from tqdm import tqdm
-import utils
+from utils import *
 
 def evaluate(net, data, device):
     # implement the evaluation function here
-    avg_score = 0
+    avg_score = []
     net.eval()
     with torch.no_grad():
         for sample in tqdm(data):
             img = torch.tensor(sample['image']).float().to(device)
-            mask = torch.tensor(sample['mask']).long().to(device)
+            mask = torch.tensor(sample['mask']).float().to(device)
 
             pred = net(img)
-            avg_score += utils.dice_score(pred, mask)
-        print(f'Average dice score = {avg_score/len(data)}')
+            avg_score.append(dice_score(pred, mask))
     
-    return avg_score/len(data)
+    return sum(avg_score)/len(avg_score)
