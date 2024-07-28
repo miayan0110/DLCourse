@@ -71,12 +71,14 @@ class UnetConv(nn.Module):
         return x
 
 class DecoderBlock(nn.Module):
-    def __init__(self, in_channels, out_channels) -> None:
+    def __init__(self, in_channels, out_channels, conv_in_channels=0) -> None:
         super(DecoderBlock, self).__init__()
+        if conv_in_channels == 0:
+            conv_in_channels = in_channels
 
-        self.upconv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2)
-        self.unetconv = UnetConv(in_channels, out_channels)
-        self.cbam = CBAM(out_channels)
+        self.upconv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2, bias=False)
+        self.unetconv = UnetConv(conv_in_channels, out_channels)
+        # self.cbam = CBAM(out_channels)
     
     def forward(self, x, prev_x):
         x = self.upconv(x)
@@ -89,7 +91,7 @@ class DecoderBlock(nn.Module):
         x = torch.cat([prev_x, x], dim=1)
         
         x = self.unetconv(x)
-        x = self.cbam(x)
+        # x = self.cbam(x)
         return x
     
 
@@ -146,10 +148,10 @@ class ResNet34_UNet(nn.Module):
         super(ResNet34_UNet, self).__init__()
 
         self.in_conv = nn.Sequential(
-            nn.Conv2d(in_channels, 64, kernel_size=7, stride=2),
+            nn.Conv2d(in_channels, 64, kernel_size=7, stride=2, padding=3),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=3, stride=2)
+            nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         )
 
         self.enc1 = EncoderBlock(64, 64, total_blocks=3, is_downsample=False)
@@ -157,14 +159,25 @@ class ResNet34_UNet(nn.Module):
         self.enc3 = EncoderBlock(128, 256, total_blocks=6)
         self.enc4 = EncoderBlock(256, 512, total_blocks=3)
 
-        self.dec1 = DecoderBlock(512, 256)
-        self.dec2 = DecoderBlock(256, 128)
-        self.dec3 = DecoderBlock(128, 64)
-        self.upsample1 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
-        self.upconv = UnetConv(32, 32)
+        self.bridge = nn.Sequential(
+            nn.Conv2d(512, 1024, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(1024),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+            
+        )
+
+        self.dec1 = DecoderBlock(1024, 512)
+        self.dec2 = DecoderBlock(512, 256)
+        self.dec3 = DecoderBlock(256, 128)
+        self.dec4 = DecoderBlock(128, 64)
+        self.dec5 = DecoderBlock(64, 32, 96)
+        # self.upsample1 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
+        # self.upconv = UnetConv(32, 32)
 
         self.out_conv = nn.Sequential(
-            nn.ConvTranspose2d(32, 32, kernel_size=2, stride=2),
+            nn.ConvTranspose2d(32, 32, kernel_size=2, stride=2, bias=False),
+            UnetConv(32, 32),
             UnetConv(32, 1),
             nn.Sigmoid()
         )
@@ -179,8 +192,9 @@ class ResNet34_UNet(nn.Module):
         x = self.dec1(x5, x4)
         x = self.dec2(x, x3)
         x = self.dec3(x, x2)
-        x = self.upsample1(x)
-        x = self.upconv(x)
+        x = self.dec4(x, x1)
+        # x = self.upsample1(x)
+        # x = self.upconv(x)
 
         x = self.out_conv(x)
         return x
