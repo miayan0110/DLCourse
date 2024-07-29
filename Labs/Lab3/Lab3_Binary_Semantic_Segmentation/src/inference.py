@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 
 def get_args():
     parser = argparse.ArgumentParser(description='Predict masks from input images')
-    parser.add_argument('--model', '-m', default='MODEL.pth', help='path to the stored model weight')
+    parser.add_argument('--model', '-m', default='DL_Lab3_UNet_313551073_顏琦恩.pth', help='path to the stored model weight')
     parser.add_argument('--data_path', type=str, default='./dataset/', help='path to the input data')
     parser.add_argument('--batch_size', '-b', type=int, default=16, help='batch size')
     parser.add_argument('--device', '-d', type=str, default='cuda', help='batch size')
