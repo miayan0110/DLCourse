@@ -16,7 +16,7 @@ class ChannelAttention(nn.Module):
 
         self.shared_MLP = nn.Sequential(
             nn.Conv2d(channels, channels//ratio, kernel_size=1),
-            nn.ReLU(),
+            nn.ReLU(inplace=True),
             nn.Conv2d(channels//ratio, channels, kernel_size=1)
         )
         self.sigmid = nn.Sigmoid()
@@ -53,6 +53,7 @@ class CBAM(nn.Module):
         out = self.spatial_attention(out) * out
         return out
 
+# structure of ResNet34-Unet is referenced from https://github.com/milesial/Pytorch-UNet/blob/master/unet/unet_parts.py
 class UnetConv(nn.Module):
     def __init__(self, in_channels, out_channels) -> None:
         super(UnetConv, self).__init__()
@@ -60,10 +61,10 @@ class UnetConv(nn.Module):
         self.conv = nn.Sequential(
             nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(),
+            nn.ReLU(inplace=True),
             nn.Conv2d(in_channels=out_channels, out_channels=out_channels, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU()
+            nn.ReLU(inplace=True)
         )
 
     def forward(self, x):
@@ -78,20 +79,14 @@ class DecoderBlock(nn.Module):
 
         self.upconv = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2, bias=False)
         self.unetconv = UnetConv(conv_in_channels, out_channels)
-        # self.cbam = CBAM(out_channels)
+        self.cbam = CBAM(out_channels)
     
     def forward(self, x, prev_x):
-        x = self.upconv(x)
-
-        diffY = x.size()[2] - prev_x.size()[2]
-        diffX = x.size()[3] - prev_x.size()[3]
-        prev_x = F.pad(prev_x, [diffX // 2, diffX - diffX // 2,
-                        diffY // 2, diffY - diffY // 2])
-        
+        x = self.upconv(x)        
         x = torch.cat([prev_x, x], dim=1)
-        
+
         x = self.unetconv(x)
-        # x = self.cbam(x)
+        x = self.cbam(x)
         return x
     
 
@@ -102,10 +97,10 @@ class ResBlock(nn.Module):
 
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(out_channels)
-        self.relu1 = nn.ReLU()
+        self.relu1 = nn.ReLU(inplace=True)
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size, stride=1, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(out_channels)
-        self.relu2 = nn.ReLU()
+        self.relu2 = nn.ReLU(inplace=True)
         if self.is_downsample:
             self.downsample = nn.Sequential(
                 nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=2, bias=False),
@@ -150,7 +145,7 @@ class ResNet34_UNet(nn.Module):
         self.in_conv = nn.Sequential(
             nn.Conv2d(in_channels, 64, kernel_size=7, stride=2, padding=3),
             nn.BatchNorm2d(64),
-            nn.ReLU(),
+            nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         )
 
@@ -164,21 +159,19 @@ class ResNet34_UNet(nn.Module):
             nn.BatchNorm2d(1024),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2, stride=2)
-            
         )
 
         self.dec1 = DecoderBlock(1024, 512)
         self.dec2 = DecoderBlock(512, 256)
         self.dec3 = DecoderBlock(256, 128)
         self.dec4 = DecoderBlock(128, 64)
-        self.dec5 = DecoderBlock(64, 32, 96)
-        # self.upsample1 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
-        # self.upconv = UnetConv(32, 32)
+        self.upsample1 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
+        self.upconv = UnetConv(32, 32)
 
         self.out_conv = nn.Sequential(
             nn.ConvTranspose2d(32, 32, kernel_size=2, stride=2, bias=False),
             UnetConv(32, 32),
-            UnetConv(32, 1),
+            nn.Conv2d(32, 1, kernel_size=1),    # 作用跟fc類似，用來做分類
             nn.Sigmoid()
         )
         
@@ -189,12 +182,14 @@ class ResNet34_UNet(nn.Module):
         x4 = self.enc3(x3)
         x5 = self.enc4(x4)
 
-        x = self.dec1(x5, x4)
-        x = self.dec2(x, x3)
-        x = self.dec3(x, x2)
-        x = self.dec4(x, x1)
-        # x = self.upsample1(x)
-        # x = self.upconv(x)
+        c = self.bridge(x5)
+
+        x = self.dec1(c, x5)
+        x = self.dec2(x, x4)
+        x = self.dec3(x, x3)
+        x = self.dec4(x, x2)
+        x = self.upsample1(x)
+        x = self.upconv(x)
 
         x = self.out_conv(x)
         return x

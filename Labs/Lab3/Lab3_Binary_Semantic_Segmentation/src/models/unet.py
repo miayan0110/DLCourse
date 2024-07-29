@@ -11,7 +11,7 @@ class Conv2dBlock(nn.Module):
         self.block = nn.Sequential(
             nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, padding=1, bias=False),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(),
+            nn.ReLU(),  # 用來增加非線性
             nn.Conv2d(in_channels=out_channels, out_channels=out_channels, kernel_size=kernel_size, padding=1, bias=False),
             nn.BatchNorm2d(out_channels),
             nn.ReLU()
@@ -20,20 +20,22 @@ class Conv2dBlock(nn.Module):
     def forward(self, x):
         x = self.block(x)
         return x
-    
+
+# 透過downsample降低spatial resolution，來提取提取high-resolution、low-level的特徵
 class DownsampleBlock(nn.Module):
     def __init__(self, in_channels, out_channels) -> None:
         super(DownsampleBlock, self).__init__()
 
         self.conv = nn.Sequential(
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            Conv2dBlock(in_channels, out_channels, 3)
+            nn.MaxPool2d(kernel_size=2, stride=2),      # 會減少空間特徵 (spatial domain)，但可以提取更high-level或abstract的特徵
+            Conv2dBlock(in_channels, out_channels, 3)   # 提取特徵 (feature map: edges, corners, textures)
         )
 
     def forward(self, x):
         x = self.conv(x)
         return x
 
+# 恢復spatial resolution，同時skip connection可以維持downsample時提取的特徵
 class UpsampleBolck(nn.Module):
     def __init__(self, in_channels, out_channels) -> None:
         super(UpsampleBolck, self).__init__()
@@ -43,12 +45,7 @@ class UpsampleBolck(nn.Module):
 
     def forward(self, x, prev_x):
         x = self.upconv(x)
-
-        diffY = prev_x.size()[2] - x.size()[2]
-        diffX = prev_x.size()[3] - x.size()[3]
-        x = F.pad(x, [diffX // 2, diffX - diffX // 2,
-                        diffY // 2, diffY - diffY // 2])
-        x = torch.cat([prev_x, x], dim=1)
+        x = torch.cat([prev_x, x], dim=1)   # skip connection: 讓unet在upsample時學到的feature map除了包含upsample到的特徵之外，也能連結downsample時提取的特徵
 
         x = self.conv(x)
         return x
