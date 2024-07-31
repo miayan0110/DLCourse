@@ -75,9 +75,12 @@ class Gaussian_Predictor(nn.Sequential):
             nn.Conv2d(out_chans, out_chans*2, kernel_size=1)
         )
         
+    # https://github.com/pytorch/examples/blob/main/vae/main.py#L61
     def reparameterize(self, mu, logvar):
         # TODO
-        raise NotImplementedError
+        std = torch.exp(0.5*logvar)
+        eps = torch.randn_like(std)
+        return mu + eps*std
 
     def forward(self, img, label):
         feature = torch.cat([img, label], dim=1)
