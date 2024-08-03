@@ -18,7 +18,10 @@ Labs/Lab3/Lab3-Leukemia_Classification/models
 Labs/Lab3/Lab3_Binary_Semantic_Segmentation/dataset
 
 Labs/Lab4/LAB4/Demo_Test
-Labs/Lab4/LAB4/LAB4_Dataset
+Labs/Lab4/LAB4_Dataset
+Labs/Lab4/LAB4_template/saved_models
+Labs/Lab4/LAB4_template/results
+Labs/Lab4/LAB4_template/models_to_test
 
 Labs/Lab5/temp
 

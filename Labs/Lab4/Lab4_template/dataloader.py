@@ -8,7 +8,7 @@ from torch.utils.data import Dataset as torchData
 from torchvision.datasets.folder import default_loader as imgloader
 from torch import stack
 def get_key(fp):
-    filename = fp.split('/')[-1]
+    filename = fp.replace('\\', '/').split('/')[-1]
     filename = filename.split('.')[0].replace('frame', '')
     return int(filename)
 
@@ -45,7 +45,7 @@ class Dataset_Dance(torchData):
         imgs = []
         labels = []
         for i in range(self.video_len):
-            label_list = self.img_folder[(index*self.video_len)+i].split('/')
+            label_list = self.img_folder[(index*self.video_len)+i].replace('\\', '/').split('/')
             label_list[-2] = self.prefix + '_label'
             
             img_name    = self.img_folder[(index*self.video_len)+i]
