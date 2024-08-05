@@ -15,7 +15,7 @@ import torch.optim as optim
 from torch import stack
 
 from tqdm import tqdm
-import imageio
+# import imageio
 
 import matplotlib.pyplot as plt
 from math import log10
@@ -36,19 +36,36 @@ def kl_criterion(mu, logvar, batch_size):
 class kl_annealing():
     def __init__(self, args, current_epoch=0):
         # TODO
-        raise NotImplementedError
+        self.current_epoch = current_epoch
+
+        if args.kl_anneal_type == 'Cyclical':
+            self.beta = self.frange_cycle_linear(args.num_epoch, 0.0, 1.0, args.kl_anneal_cycle, args.kl_anneal_ratio)
+        elif args.kl_anneal_type == 'Monotonic':
+            self.beta = self.frange_cycle_linear(args.num_epoch, 0.0, 1.0, 1, args.kl_anneal_ratio)
+        else:
+            self.beta = np.ones(args.num_epoch)
         
     def update(self):
         # TODO
-        raise NotImplementedError
+        self.current_epoch += 1
     
     def get_beta(self):
         # TODO
-        raise NotImplementedError
+        return self.beta[self.current_epoch]
 
     def frange_cycle_linear(self, n_iter, start=0.0, stop=1.0,  n_cycle=1, ratio=1):
-        # TODO
-        raise NotImplementedError
+        # TODO refer to https://github.com/haofuml/cyclical_annealing/tree/master
+        beta = np.ones(n_iter)
+        period = n_iter/n_cycle # 每經過period個iteration，beta從0開始算
+        step = (stop-start)/(period*ratio) # beta每次增加的量
+
+        for c in range(n_cycle):
+            v, i = start, 0
+            while v <= stop and (int(i+c*period) < n_iter):
+                beta[int(i+c*period)] = v
+                v += step
+                i += 1
+        return beta
         
 
 class VAE_Model(nn.Module):
@@ -87,25 +104,29 @@ class VAE_Model(nn.Module):
         pass
     
     def training_stage(self):
+        max_psnr = 0.0
         for i in range(self.args.num_epoch):
             train_loader = self.train_dataloader()
             adapt_TeacherForcing = True if random.random() < self.tfr else False
             
             for (img, label) in (pbar := tqdm(train_loader, ncols=120)):
-                img = img.to(self.args.device)
-                label = label.to(self.args.device)
+                img = img.to(self.args.device)      # (B, seq, C, H, W)
+                label = label.to(self.args.device)  # (B, seq, C, H, W)
                 loss = self.training_one_step(img, label, adapt_TeacherForcing)
                 
                 beta = self.kl_annealing.get_beta()
                 if adapt_TeacherForcing:
-                    self.tqdm_bar('train [TeacherForcing: ON, {:.1f}], beta: {}'.format(self.tfr, beta), pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0])
+                    self.tqdm_bar('train [TeacherForcing: ON, {:.1f}], beta: {:.3f}'.format(self.tfr, beta), pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0])
                 else:
-                    self.tqdm_bar('train [TeacherForcing: OFF, {:.1f}], beta: {}'.format(self.tfr, beta), pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0])
+                    self.tqdm_bar('train [TeacherForcing: OFF, {:.1f}], beta: {:.3f}'.format(self.tfr, beta), pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0])
             
-            if self.current_epoch % self.args.per_save == 0:
-                self.save(os.path.join(self.args.save_root, f"epoch={self.current_epoch}.ckpt"))
+            # if self.current_epoch % self.args.per_save == 0:
+            #     self.save(os.path.join(self.args.save_root, f"epoch={self.current_epoch}.ckpt"))
                 
-            self.eval()
+            avg_psnr = self.eval()
+            if avg_psnr > max_psnr and self.current_epoch != 0:
+                self.save(os.path.join(self.args.save_root, f"epoch={self.current_epoch}.ckpt"))
+                max_psnr = avg_psnr
             self.current_epoch += 1
             self.scheduler.step()
             self.teacher_forcing_ratio_update()
@@ -118,16 +139,85 @@ class VAE_Model(nn.Module):
         for (img, label) in (pbar := tqdm(val_loader, ncols=120)):
             img = img.to(self.args.device)
             label = label.to(self.args.device)
-            loss = self.val_one_step(img, label)
-            self.tqdm_bar('val', pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0])
+            loss, psnrs = self.val_one_step(img, label)
+            self.tqdm_bar(f'val [ Avg PSNR: {np.mean(psnrs):.5f}]', pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0])
     
+        if not self.args.test:
+            save_loss(loss.item())
+        else:
+            plot_psnr(psnrs, show=True, save_path=self.args.save_root)
+
+        return np.mean(psnrs)
+
+    # python Trainer.py --DR ../LAB4_Dataset --save_root ./saved_models
     def training_one_step(self, img, label, adapt_TeacherForcing):
         # TODO
-        raise NotImplementedError
-    
+        # (B, seq, C, H, W)
+        batch_size = img.shape[0]
+        beta = self.kl_annealing.get_beta()
+
+        kl_loss = 0.0
+        mse_loss = 0.0
+        img = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
+        label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
+
+        decoded_frame = [img[0]]
+        for i in range(1, self.args.train_vi_len):
+            if adapt_TeacherForcing:
+                prev_x = img[i-1]
+            else:
+                prev_x = decoded_frame[i-1]
+
+            encoded_prev_x = self.frame_transformation(prev_x)
+            encoded_p = self.label_transformation(label[i])
+
+            encoded_x = self.frame_transformation(img[i])
+            z, mu, logvar = self.Gaussian_Predictor(encoded_x, encoded_p)
+
+            x_hat = self.Generator(self.Decoder_Fusion(encoded_prev_x, encoded_p, z))
+            decoded_frame.append(x_hat)
+
+            kl_loss += kl_criterion(mu, logvar, batch_size)
+            mse_loss += self.mse_criterion(x_hat, img[i])
+
+        loss = mse_loss + beta * kl_loss # seq loss
+
+        self.optim.zero_grad()
+        loss.backward()
+        self.optimizer_step()
+        
+        return loss / batch_size    # avg seq loss
+
+    # python Trainer.py --DR ../LAB4_Dataset --save_root ./saved_models --ckpt_path ./saved_models/epoch=0.ckpt --test
     def val_one_step(self, img, label):
         # TODO
-        raise NotImplementedError
+        batch_size = img.shape[0]
+        batch_psnr = []
+        beta = self.kl_annealing.get_beta()
+
+        kl_loss = 0.0
+        mse_loss = 0.0
+        img = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
+        label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
+
+        decoded_frame = [img[0]]
+        for i in range(1, self. args.val_vi_len):
+            encoded_prev_x = self.frame_transformation(decoded_frame[i-1])
+            encoded_p = self.label_transformation(label[i])
+
+            encoded_x = self.frame_transformation(img[i])
+            z, mu, logvar = self.Gaussian_Predictor(encoded_x, encoded_p)
+
+            x_hat = self.Generator(self.Decoder_Fusion(encoded_prev_x, encoded_p, z))
+            decoded_frame.append(x_hat)
+
+            kl_loss += kl_criterion(mu, logvar, batch_size)
+            mse_loss += self.mse_criterion(x_hat, img[i])
+            batch_psnr.append(Generate_PSNR(x_hat, img[i]).item())
+
+        loss = mse_loss + beta * kl_loss # seq loss
+        
+        return loss / batch_size, batch_psnr
                 
     def make_gif(self, images_list, img_name):
         new_list = []
@@ -170,7 +260,9 @@ class VAE_Model(nn.Module):
     
     def teacher_forcing_ratio_update(self):
         # TODO
-        raise NotImplementedError
+         if self.current_epoch >= self.tfr_sde:
+             self.tfr -= self.tfr_d_step
+             self.tfr = max(0, self.tfr)
             
     def tqdm_bar(self, mode, pbar, loss, lr):
         pbar.set_description(f"({mode}) Epoch {self.current_epoch}, lr:{lr}" , refresh=False)
@@ -203,7 +295,23 @@ class VAE_Model(nn.Module):
         nn.utils.clip_grad_norm_(self.parameters(), 1.)
         self.optim.step()
 
+def plot_psnr(value_lst, show=False, save_path=None):
+    plt.plot(value_lst, linestyle='-', color='b', label=f'Avg_PSNR: {sum(value_lst) / len(value_lst):.3f}')
+    plt.title('Per frame Quality (PSNR)')
+    plt.xlabel('Frame Index')
+    plt.ylabel('PSNR')
+    plt.legend()
 
+    if save_path is not None:
+        plt.savefig(save_path)
+
+    if show:
+        plt.show()
+
+def save_loss(loss):
+    filename = f'loss.txt'
+    with open(filename, 'a') as file:
+        file.write(f"{loss}\n")
 
 def main(args):
     

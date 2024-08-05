@@ -10,7 +10,7 @@ from modules import Generator, Gaussian_Predictor, Decoder_Fusion, Label_Encoder
 from torchvision.utils import save_image
 from torch import stack
 
-import imageio
+# import imageio
 from math import log10
 from Trainer import VAE_Model
 import glob
@@ -27,7 +27,7 @@ TA_ = """
 """
 
 def get_key(fp):
-    filename = fp.split('/')[-1]
+    filename = fp.replace('\\', '/').split('/')[-1]
     filename = filename.split('.')[0].replace('frame', '')
     return int(filename)
 
@@ -44,7 +44,7 @@ class Dataset_Dance(torchData):
         self.img_folder = []
         self.label_folder = []
         
-        data_num = len(glob('./Demo_Test/*'))
+        data_num = 5
         for i in range(data_num):
             self.img_folder.append(sorted(glob(os.path.join(root , f'test/test_img/{i}/*')), key=get_key))
             self.label_folder.append(sorted(glob(os.path.join(root , f'test/test_label/{i}/*')), key=get_key))
@@ -109,7 +109,7 @@ class Test_model(VAE_Model):
         
         
             
-    
+    # python Tester.py --DR ../LAB4_Dataset --save_root ./results --ckpt_path ./saved_models/epoch=0.ckpt
     def val_one_step(self, img, label, idx=0):
         img = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
         label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
@@ -123,8 +123,16 @@ class Test_model(VAE_Model):
         label_list = []
 
         # TODO
-        raise NotImplementedError
-            
+        for i in range(1, self.args.val_vi_len):
+            encoded_x = self.frame_transformation(decoded_frame_list[i-1].to(self.args.device))
+            encoded_p = self.label_transformation(label[i]).to(self.args.device)
+
+            z, mu, logvar = self.Gaussian_Predictor(encoded_x, encoded_p) # get shape of z
+            z = torch.randn_like(z) # sample from normal distribution
+
+            x_hat = self.Generator(self.Decoder_Fusion(encoded_x, encoded_p, z))
+            decoded_frame_list.append(x_hat.cpu())
+            label_list.append(encoded_p.cpu())
         
         # Please do not modify this part, it is used for visulization
         generated_frame = stack(decoded_frame_list).permute(1, 0, 2, 3, 4)
