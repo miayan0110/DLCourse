@@ -6,6 +6,8 @@
 *.png
 *.0
 *.pth
+*.pt
+*.txt
 
 # ignore specific files in some folders
 Labs/Lab1/tester.ipynb
@@ -25,6 +27,7 @@ Labs/Lab4/LAB4_template/models_to_test
 
 Labs/Lab5/old/temp
 Labs/Lab5/old/log
+Labs/Lab5/lab5/lab5_dataset
 
 Labs/Lab6/*
 !Labs/Lab6/*.py
