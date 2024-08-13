@@ -109,7 +109,7 @@ class Test_model(VAE_Model):
         
         
             
-    # python Tester.py --DR ../LAB4_Dataset --save_root ./results --ckpt_path ./saved_models/epoch=0.ckpt
+    # python Tester.py --DR ../LAB4_Dataset --save_root ./results --ckpt_path ./saved_models/epoch=95.ckpt
     def val_one_step(self, img, label, idx=0):
         img = img.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
         label = label.permute(1, 0, 2, 3, 4) # change tensor into (seq, B, C, H, W)
@@ -177,6 +177,8 @@ class Test_model(VAE_Model):
 
 
 def main(args):
+    seed = 42
+    torch.manual_seed(seed)
     os.makedirs(args.save_root, exist_ok=True)
     model = Test_model(args).to(args.device)
     model.load_checkpoint()
