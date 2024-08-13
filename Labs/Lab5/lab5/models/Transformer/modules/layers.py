@@ -6,6 +6,18 @@ import math
 class MultiHeadAttention(nn.Module):
     def __init__(self, dim=768, num_heads=16, attn_drop=0.1):
         super(MultiHeadAttention, self).__init__()
+        self.dim = dim
+        self.num_heads = num_heads
+        self.attn_drop = attn_drop
+
+        self.w_q = nn.Linear(dim, dim)
+        self.w_k = nn.Linear(dim, dim)
+        self.w_v = nn.Linear(dim, dim)
+
+        self.softmax = nn.Softmax(dim=-1)
+        self.dropout = nn.Dropout(attn_drop)
+
+        self.w_o = nn.Linear(dim, dim)
 
     def forward(self, x):
         ''' Hint: input x tensor shape is (batch_size, num_image_tokens, dim), 
@@ -15,6 +27,29 @@ class MultiHeadAttention(nn.Module):
             Total d_k , d_v set to 768
             d_k , d_v for one head will be 768//16.
         '''
+        # reference: 
+        # https://github.com/CyberZHG/torch-multi-head-attention/blob/master/torch_multi_head_attention/multi_head_attention.py
+        # https://github.com/jadore801120/attention-is-all-you-need-pytorch/blob/master/transformer/SubLayers.py
+        batch_size = x.shape[0]
+
+        query = self.w_q(x)
+        key = self.w_q(x)
+        value = self.w_q(x)
+
+        query = query.view(batch_size, -1, self.num_heads, self.dim).transpose(1, 2)
+        key = key.view(batch_size, -1, self.num_heads, self.dim).transpose(1, 2)
+        value = value.view(batch_size, -1, self.num_heads, self.dim).transpose(1, 2)
+
+        # Scaled Dot-Product Attention
+        matmul_qk = torch.matmul(query, key.transpose(-2, -1))
+        dk = key.size()[-1]
+        attention_weights = self.softmax(matmul_qk / (dk ** 0.5))
+        dropout_attention_weights = self.dropout(attention_weights)
+        output = torch.matmul(dropout_attention_weights, value)
+
+        output = output.transpose(1, 2).contiguous().view(batch_size, -1, self.dim)
+        output = self.w_o(output)
+        return output
         raise Exception('TODO1!')
 
 class MLP(nn.Sequential):

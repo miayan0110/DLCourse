@@ -34,8 +34,10 @@ class MaskGit(nn.Module):
 ##TODO2 step1-1: input x fed to vqgan encoder to get the latent and zq
     @torch.no_grad()
     def encode_to_z(self, x):
-        raise Exception('TODO2 step1-1!')
-        return None
+        # raise Exception('TODO2 step1-1!')
+        # https://github.com/dome272/MaskGIT-pytorch/blob/main/transformer.py
+        codebook_mapping, codebook_indices, q_loss = self.vqgan.encode(x)
+        return codebook_mapping, codebook_indices
     
 ##TODO2 step1-2:    
     def gamma_func(self, mode="cosine"):
@@ -50,33 +52,40 @@ class MaskGit(nn.Module):
         Returns: The mask rate (float).
 
         """
+        # https://github.com/dome272/MaskGIT-pytorch/blob/main/transformer.py
         if mode == "linear":
-            raise Exception('TODO2 step1-2!')
-            return None
+            return lambda r: 1 - r
         elif mode == "cosine":
-            raise Exception('TODO2 step1-2!')
-            return None
+            return lambda r: np.cos(r * np.pi / 2)
         elif mode == "square":
-            raise Exception('TODO2 step1-2!')
-            return None
+            return lambda r: 1 - r ** 2
+        elif mode == "cubic":
+            return lambda r: 1 - r ** 3
         else:
             raise NotImplementedError
 
 ##TODO2 step1-3:            
     def forward(self, x):
         
-        z_indices=None #ground truth
-        logits = None  #transformer predict the probability of tokens
-        raise Exception('TODO2 step1-3!')
+        _, z_indices = self.encode_to_z(x) #ground truth
+        r = math.floor(self.gamma(np.random.uniform()) * z_indices.shape[1])
+        mask = torch.bernoulli(r * torch.ones(z_indices.shape, device=z_indices.device))
+
+        masked_indices = self.mask_token_id * torch.ones_like(z_indices, device=z_indices.device)
+        new_indices = mask * z_indices + (~mask) * masked_indices
+
+        logits = self.transformer(new_indices)  #transformer predict the probability of tokens
         return logits, z_indices
+        raise Exception('TODO2 step1-3!')
+        
     
 ##TODO3 step1-1: define one iteration decoding   
     @torch.no_grad()
     def inpainting(self):
-        raise Exception('TODO3 step1-1!')
+        
         logits = self.transformer(None)
         #Apply softmax to convert logits into a probability distribution across the last dimension.
-        logits = None
+        logits = torch.softmax(logits, dim=-1)
 
         #FIND MAX probability for each token value
         z_indices_predict_prob, z_indices_predict = None
@@ -93,6 +102,7 @@ class MaskGit(nn.Module):
         #At the end of the decoding process, add back the original token values that were not masked to the predicted tokens
         mask_bc=None
         return z_indices_predict, mask_bc
+        raise Exception('TODO3 step1-1!')
     
 __MODEL_TYPE__ = {
     "MaskGit": MaskGit
