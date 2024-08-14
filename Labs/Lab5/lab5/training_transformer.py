@@ -67,12 +67,12 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint_root', type=str, default='./transformer_checkpoints/', help='Path to checkpoint.')
     parser.add_argument('--device', type=str, default="cuda:0", help='Which device the training is on.')
     parser.add_argument('--num_workers', type=int, default=4, help='Number of worker')
-    parser.add_argument('--batch_size', type=int, default=10, help='Batch size for training.')
+    parser.add_argument('--batch_size', type=int, default=12, help='Batch size for training.')
     parser.add_argument('--partial', type=float, default=1.0, help='Number of epochs to train (default: 50)')    
     parser.add_argument('--accum_grad', type=int, default=10, help='Number for gradient accumulation.')
 
     #you can modify the hyperparameters 
-    parser.add_argument('--epochs', type=int, default=0, help='Number of epochs to train.')
+    parser.add_argument('--epochs', type=int, default=50, help='Number of epochs to train.')
     parser.add_argument('--save_per_epoch', type=int, default=1, help='Save CKPT per ** epochs(defcault: 1)')
     parser.add_argument('--start_from_epoch', type=int, default=0, help='Number of epochs to train.')
     parser.add_argument('--ckpt_interval', type=int, default=0, help='Number of epochs to train.')
