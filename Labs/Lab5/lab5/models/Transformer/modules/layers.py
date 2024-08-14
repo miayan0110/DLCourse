@@ -50,7 +50,7 @@ class MultiHeadAttention(nn.Module):
         output = output.transpose(1, 2).contiguous().view(batch_size, -1, self.dim)
         output = self.w_o(output)
         return output
-        raise Exception('TODO1!')
+        # raise Exception('TODO1!')
 
 class MLP(nn.Sequential):
     def __init__(self, dim=768, hidden_dim=3072, drop_rate=0.1):

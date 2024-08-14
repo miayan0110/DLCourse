@@ -13,6 +13,8 @@ from torch.utils.data import DataLoader
 
 from torch.utils.tensorboard import SummaryWriter
 
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+
 #TODO2 step1-4: design the transformer training strategy
 class TrainTransformer:
     def __init__(self, args, MaskGit_CONFIGS):
@@ -25,7 +27,7 @@ class TrainTransformer:
     def prepare_training():
         os.makedirs("transformer_checkpoints", exist_ok=True)
 
-    def train_one_epoch(self, data_loader, current_epoch):
+    def train_one_epoch(self, data_loader):
         self.model.train()
         epoch_loss = []
         for i, data in tqdm(enumerate(data_loader)):
@@ -59,10 +61,10 @@ class TrainTransformer:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="MaskGIT")
     #TODO2:check your dataset path is correct 
-    parser.add_argument('--train_d_path', type=str, default="./cat_face/train/", help='Training Dataset Path')
-    parser.add_argument('--val_d_path', type=str, default="./cat_face/val/", help='Validation Dataset Path')
-    parser.add_argument('--last_checkpoint_path', type=str, default='./checkpoints/last_ckpt.pt', help='Path to checkpoint.')
-    parser.add_argument('--checkpoint_root', type=str, default='./checkpoints/', help='Path to checkpoint.')
+    parser.add_argument('--train_d_path', type=str, default="./lab5_dataset/train/", help='Training Dataset Path')
+    parser.add_argument('--val_d_path', type=str, default="./lab5_dataset/val/", help='Validation Dataset Path')
+    parser.add_argument('--last_checkpoint_path', type=str, default='./transformer_checkpoints/last_ckpt.pt', help='Path to checkpoint.')
+    parser.add_argument('--checkpoint_root', type=str, default='./transformer_checkpoints/', help='Path to checkpoint.')
     parser.add_argument('--device', type=str, default="cuda:0", help='Which device the training is on.')
     parser.add_argument('--num_workers', type=int, default=4, help='Number of worker')
     parser.add_argument('--batch_size', type=int, default=10, help='Batch size for training.')
@@ -104,8 +106,8 @@ if __name__ == '__main__':
 #TODO2 step1-5:    
     min_loss = 10000
     for epoch in range(args.start_from_epoch+1, args.epochs+1):
-        train_loss = train_transformer.train_one_epoch(train_loader, epoch)
-        val_loss = train_transformer.eval_one_epoch(val_loader, epoch)
+        train_loss = train_transformer.train_one_epoch(train_loader)
+        val_loss = train_transformer.eval_one_epoch(val_loader)
 
         if train_loss <= min_loss:
             min_loss = train_loss

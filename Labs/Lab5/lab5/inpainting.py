@@ -41,23 +41,23 @@ class MaskGIT:
 
         self.model.eval()
         with torch.no_grad():
-            z_indices = None #z_indices: masked tokens (b,16*16)
+            _, z_indices = self.model.encode_to_z(image) #z_indices: masked tokens (b,16*16)
             mask_num = mask_b.sum() #total number of mask token 
             z_indices_predict=z_indices
             mask_bc=mask_b
             mask_b=mask_b.to(device=self.device)
             mask_bc=mask_bc.to(device=self.device)
             
-            raise Exception('TODO3 step1-1!')
+            
             ratio = 0
             #iterative decoding for loop design
             #Hint: it's better to save original mask and the updated mask by scheduling separately
             for step in range(self.total_iter):
                 if step == self.sweet_spot:
                     break
-                ratio = None #this should be updated
+                ratio = step / self.total_iter #this should be updated
     
-                z_indices_predict, mask_bc = self.model.inpainting()
+                z_indices_predict, mask_bc = self.model.inpainting(z_indices_predict, mask_bc, mask_num, ratio)
 
                 #static method yon can modify or not, make sure your visualization results are correct
                 mask_i=mask_bc.view(1, 16, 16)
@@ -78,7 +78,7 @@ class MaskGIT:
             #demo score 
             vutils.save_image(maska, os.path.join("mask_scheduling", f"test_{i}.png"), nrow=10) 
             vutils.save_image(imga, os.path.join("imga", f"test_{i}.png"), nrow=7)
-
+            # raise Exception('TODO3 step1-1!')
 
 
 class MaskedImage:
