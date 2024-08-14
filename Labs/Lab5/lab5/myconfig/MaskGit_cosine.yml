@@ -6,7 +6,7 @@
     
       VQ_Configs:
         VQ_config_path: models/VQGAN/config/VQGAN.yml
-        VQ_CKPT_path: kaggle/input/checkpoints/VQGAN.pt
+        VQ_CKPT_path: /kaggle/input/checkpoints/VQGAN.pt
       
       num_image_tokens: 256
       num_codebook_vectors: 1024
