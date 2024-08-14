@@ -39,7 +39,7 @@ class TrainTransformer:
                 self.optim.step()
                 self.optim.zero_grad()
 
-        torch.save(self.model.state_dict(), self.args.last_checkpoint_path)
+        torch.save(self.model.transformer.state_dict(), self.args.last_checkpoint_path)
         return sum(epoch_loss) / len(epoch_loss)
 
     @torch.no_grad()
@@ -112,7 +112,7 @@ if __name__ == '__main__':
         print(f'[Epoch {epoch}] training loss: {train_loss:.5f}, validation loss: {val_loss:.5f}')
         if train_loss <= min_loss:
             min_loss = train_loss
-            torch.save(train_transformer.model.state_dict(), f'{args.checkpoint_root}min_loss_epoch={epoch}.pt')
+            torch.save(train_transformer.model.transformer.state_dict(), f'{args.checkpoint_root}min_loss_epoch={epoch}.pt')
             print(f'Saving best checkpoint to {args.checkpoint_root}min_loss_epoch={epoch}.pt...')
         writer.add_scalar('Training loss', train_loss, epoch)
         writer.add_scalar('Evaluating loss', val_loss, epoch)

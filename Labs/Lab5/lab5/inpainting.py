@@ -121,11 +121,11 @@ if __name__ == '__main__':
     
     
 #TODO3 step1-2: modify the path, MVTM parameters
-    parser.add_argument('--load-transformer-ckpt-path', type=str, default='', help='load ckpt')
+    parser.add_argument('--load_transformer_ckpt_path', type=str, default='', help='load ckpt')
     
     #dataset path
-    parser.add_argument('--test-maskedimage-path', type=str, default='./cat_face/masked_image', help='Path to testing image dataset.')
-    parser.add_argument('--test-mask-path', type=str, default='./mask64', help='Path to testing mask dataset.')
+    parser.add_argument('--test-maskedimage-path', type=str, default='./lab5_dataset/masked_image', help='Path to testing image dataset.')
+    parser.add_argument('--test-mask-path', type=str, default='./lab5_dataset/mask64', help='Path to testing mask dataset.')
     #MVTM parameter
     parser.add_argument('--sweet-spot', type=int, default=0, help='sweet spot: the best step in total iteration')
     parser.add_argument('--total-iter', type=int, default=0, help='total step for mask scheduling')
