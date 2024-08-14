@@ -30,7 +30,7 @@ class TrainTransformer:
     def train_one_epoch(self, data_loader):
         self.model.train()
         epoch_loss = []
-        for i, data in tqdm(enumerate(data_loader)):
+        for i, data in enumerate(tqdm(data_loader)):
             logits, z_indices = self.model(data.to(self.args.device))
             loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), z_indices.reshape(-1))
             epoch_loss.append(loss.item())
@@ -46,7 +46,7 @@ class TrainTransformer:
     def eval_one_epoch(self, data_loader):
         self.model.eval()
         epoch_loss = []
-        for i, data in tqdm(enumerate(data_loader)):
+        for i, data in enumerate(tqdm(data_loader)):
             logits, z_indices = self.model(data.to(self.args.device))
             loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), z_indices.reshape(-1))
             epoch_loss.append(loss.item())

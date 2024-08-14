@@ -48,7 +48,7 @@ class MaskGIT:
             mask_b=mask_b.to(device=self.device)
             mask_bc=mask_bc.to(device=self.device)
             
-            
+            dec_img_ori = ori
             ratio = 0
             #iterative decoding for loop design
             #Hint: it's better to save original mask and the updated mask by scheduling separately
