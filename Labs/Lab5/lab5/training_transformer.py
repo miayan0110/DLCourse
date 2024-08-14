@@ -109,8 +109,10 @@ if __name__ == '__main__':
         train_loss = train_transformer.train_one_epoch(train_loader)
         val_loss = train_transformer.eval_one_epoch(val_loader)
 
+        print(f'[Epoch {epoch}] training loss: {train_loss:.5f}, validation loss: {val_loss:.5f}')
         if train_loss <= min_loss:
             min_loss = train_loss
             torch.save(train_transformer.model.state_dict(), f'{args.checkpoint_root}min_loss_epoch={epoch}.pt')
+            print(f'Saving best checkpoint to {args.checkpoint_root}min_loss_epoch={epoch}.pt...')
         writer.add_scalar('Training loss', train_loss, epoch)
         writer.add_scalar('Evaluating loss', val_loss, epoch)
