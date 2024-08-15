@@ -36,9 +36,9 @@ class MultiHeadAttention(nn.Module):
         key = self.w_q(x)
         value = self.w_q(x)
 
-        query = query.view(batch_size, -1, self.num_heads, self.dim).transpose(1, 2)
-        key = key.view(batch_size, -1, self.num_heads, self.dim).transpose(1, 2)
-        value = value.view(batch_size, -1, self.num_heads, self.dim).transpose(1, 2)
+        query = query.view(batch_size, -1, self.num_heads, self.dim // self.num_heads).transpose(1, 2)
+        key = key.view(batch_size, -1, self.num_heads, self.dim // self.num_heads).transpose(1, 2)
+        value = value.view(batch_size, -1, self.num_heads, self.dim // self.num_heads).transpose(1, 2)
 
         # Scaled Dot-Product Attention
         matmul_qk = torch.matmul(query, key.transpose(-2, -1))
