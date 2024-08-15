@@ -9,7 +9,7 @@ conda activate maskgit
 
 <pre><code>
 python training_transformer.py
-python inpainting.py
+python inpainting.py --load_transformer_ckpt_path ./transformer_checkpoints/last_ckpt.pt
 </code></pre>
 (Make sure to edit the path for the dataset or checkpoint path etc.)
 
@@ -24,7 +24,7 @@ python inpainting.py
 ## Experiment Score
 <pre><code>
  cd faster-pytorch-fid
- python fid_score_gpu.py --predicted-path /path/your_inpainting_results_folder --device cuda:0
+ python fid_score_gpu.py --predicted-path ../test_results --device cuda:0 --num-workers 0
 </code></pre>
 
 ## TODO

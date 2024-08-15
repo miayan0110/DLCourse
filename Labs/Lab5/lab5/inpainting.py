@@ -11,6 +11,7 @@ import os
 from models import MaskGit as VQGANTransformer
 import yaml
 import torch.nn.functional as F
+from tqdm import tqdm
 
 class MaskGIT:
     def __init__(self, args, MaskGit_CONFIGS):
@@ -74,7 +75,6 @@ class MaskGIT:
 
             ##decoded image of the sweet spot only, the test_results folder path will be the --predicted-path for fid score calculation
             vutils.save_image(dec_img_ori, os.path.join("test_results", f"image_{i:03d}.png"), nrow=1) 
-
             #demo score 
             vutils.save_image(maska, os.path.join("mask_scheduling", f"test_{i}.png"), nrow=10) 
             vutils.save_image(imga, os.path.join("imga", f"test_{i}.png"), nrow=7)
@@ -127,9 +127,9 @@ if __name__ == '__main__':
     parser.add_argument('--test-maskedimage-path', type=str, default='./lab5_dataset/masked_image', help='Path to testing image dataset.')
     parser.add_argument('--test-mask-path', type=str, default='./lab5_dataset/mask64', help='Path to testing mask dataset.')
     #MVTM parameter
-    parser.add_argument('--sweet-spot', type=int, default=0, help='sweet spot: the best step in total iteration')
-    parser.add_argument('--total-iter', type=int, default=0, help='total step for mask scheduling')
-    parser.add_argument('--mask-func', type=str, default='0', help='mask scheduling function')
+    parser.add_argument('--sweet-spot', type=int, default=10, help='sweet spot: the best step in total iteration')
+    parser.add_argument('--total-iter', type=int, default=10, help='total step for mask scheduling')
+    parser.add_argument('--mask-func', type=str, default='cosine', help='mask scheduling function')
 
     args = parser.parse_args()
 
@@ -138,7 +138,7 @@ if __name__ == '__main__':
     maskgit = MaskGIT(args, MaskGit_CONFIGS)
 
     i=0
-    for image, mask in zip(t.mi_ori, t.mask_ori):
+    for image, mask in tqdm(zip(t.mi_ori, t.mask_ori), total=len(t.mi_ori)):
         image=image.to(device=args.device)
         mask=mask.to(device=args.device)
         mask_b=t.get_mask_latent(mask)       

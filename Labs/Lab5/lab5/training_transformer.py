@@ -76,7 +76,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_per_epoch', type=int, default=1, help='Save CKPT per ** epochs(defcault: 1)')
     parser.add_argument('--start_from_epoch', type=int, default=0, help='Number of epochs to train.')
     parser.add_argument('--ckpt_interval', type=int, default=0, help='Number of epochs to train.')
-    parser.add_argument('--learning_rate', type=float, default=0, help='Learning rate.')
+    parser.add_argument('--learning_rate', type=float, default=0.00001, help='Learning rate.')
 
     parser.add_argument('--MaskGitConfig', type=str, default='config/MaskGit.yml', help='Configurations for TransformerVQGAN')
 
