@@ -76,7 +76,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_per_epoch', type=int, default=1, help='Save CKPT per ** epochs(defcault: 1)')
     parser.add_argument('--start_from_epoch', type=int, default=0, help='Number of epochs to train.')
     parser.add_argument('--ckpt_interval', type=int, default=0, help='Number of epochs to train.')
-    parser.add_argument('--learning_rate', type=float, default=0.00001, help='Learning rate.')
+    parser.add_argument('--learning_rate', type=float, default=0.0001, help='Learning rate.')
 
     parser.add_argument('--MaskGitConfig', type=str, default='config/MaskGit.yml', help='Configurations for TransformerVQGAN')
 
@@ -105,14 +105,18 @@ if __name__ == '__main__':
     
 #TODO2 step1-5:    
     min_loss = 10000
+    best_epoch = 0
     for epoch in range(args.start_from_epoch+1, args.epochs+1):
         train_loss = train_transformer.train_one_epoch(train_loader)
+        print(f'[Epoch {epoch}] training loss: {train_loss:.5f}')
         val_loss = train_transformer.eval_one_epoch(val_loader)
+        print(f'[Epoch {epoch}] validation loss: {val_loss:.5f}')
 
-        print(f'[Epoch {epoch}] training loss: {train_loss:.5f}, validation loss: {val_loss:.5f}')
         if train_loss <= min_loss:
             min_loss = train_loss
-            torch.save(train_transformer.model.transformer.state_dict(), f'{args.checkpoint_root}min_loss_epoch={epoch}.pt')
-            print(f'Saving best checkpoint to {args.checkpoint_root}min_loss_epoch={epoch}.pt...')
+            best_epoch = epoch
+            torch.save(train_transformer.model.transformer.state_dict(), f'{args.checkpoint_root}best_epoch.pt')
+            print(f'Saving best checkpoint to {args.checkpoint_root}best_epoch.pt...')
         writer.add_scalar('Training loss', train_loss, epoch)
         writer.add_scalar('Evaluating loss', val_loss, epoch)
+    print(f'================ min loss in epoch {best_epoch} ================')
