@@ -5,8 +5,9 @@ import torch
 import torchvision.transforms as transforms
 
 
+#############   Dataset   #############
 def getData(mode):
-    label_dict = json.load(open('./object.json'))
+    label_dict = json.load(open('./objects.json'))
     if mode == 'train':
         data_dict = json.load(open('./train.json'))
         
@@ -23,38 +24,46 @@ def getData(mode):
         else:
             data_list = json.load(open('./new_test.json'))
 
+        img_names = []
         labels = []
         for value in data_list:
+            img_names.append('_'.join(value))
             label = [1 if x in value else 0 for x in label_dict.keys()] # to one-hot vector
             labels.append(label)
-        return labels
+        return img_names, labels
 
 
 class IClevrDataSet(torch.utils.data.Dataset):
     def __init__(self, root, mode='train') -> None:
         super().__init__()
         self.root = root
-        if mode == 'train':
-            self.imgs, self.labels = getData(mode)
-        else:
-            self.labels = getData(mode)
+        self.mode = mode
+        self.imgs, self.labels = getData(mode)
 
     def __len__(self):
         return len(self.labels)
 
     def __getitem__(self, index):
-        transformer = transforms.Compose([
-            transforms.RandomHorizontalFlip(0.5),
-            transforms.Resize((64, 64)),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-        ])
-        img = Image.open(os.path.join(self.root, 'iclevr', self.imgs[index])).convert("RGB")
-        img = transformer(img)
+        # data preprocessing
+        if self.mode == 'train':
+            transformer = transforms.Compose([
+                transforms.RandomHorizontalFlip(0.5),
+                transforms.Resize((64, 64)),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+            ])
+            img = Image.open(os.path.join(self.root, 'iclevr', self.imgs[index])).convert("RGB")
+            img = transformer(img)
 
-        return img, self.labels[index]
+            return img, torch.Tensor(self.labels[index])
+        else:
+            return self.imgs[index], torch.Tensor(self.labels[index])
+    
 
 
-if __name__ == '__main__':
-    dataset = IClevrDataSet('test')
-    print(len(dataset))
+
+# if __name__ == '__main__':
+#     dataset = IClevrDataSet(root='', mode='train')
+#     data2plt = DataLoader(dataset, batch_size=8, shuffle=False)
+#     img, label = next(iter(data2plt))
+#     pltImageGrid(img)
