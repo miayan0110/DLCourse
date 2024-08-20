@@ -3,6 +3,7 @@ import json
 from PIL import Image
 import torch
 import torchvision.transforms as transforms
+from torchvision.datasets.folder import default_loader as imgloader
 
 
 #############   Dataset   #############
@@ -47,12 +48,11 @@ class IClevrDataSet(torch.utils.data.Dataset):
         # data preprocessing
         if self.mode == 'train':
             transformer = transforms.Compose([
-                transforms.RandomHorizontalFlip(0.5),
                 transforms.Resize((64, 64)),
                 transforms.ToTensor(),
                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             ])
-            img = Image.open(os.path.join(self.root, 'iclevr', self.imgs[index])).convert("RGB")
+            img = imgloader(os.path.join(self.root, 'iclevr', self.imgs[index]))
             img = transformer(img)
 
             return img, torch.Tensor(self.labels[index])

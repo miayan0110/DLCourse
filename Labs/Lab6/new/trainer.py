@@ -47,7 +47,7 @@ class DDPMTrainer:
 
                 # add noise to image
                 # use noise scheduler to add random noise to the image
-                noise = torch.rand_like(img).to(self.args.device)
+                noise = torch.rand_like(img)
                 timestep = torch.randint(0, 999, (img.shape[0],)).long().to(self.args.device)
                 noise_img = self.noise_scheduler.add_noise(img, noise, timestep)
 
@@ -72,7 +72,7 @@ class DDPMTrainer:
             #     pltImageGrid(denoised_img, save_path)
 
             self.saveModel(epoch)
-            if (epoch+1) % 5 == 0:
+            if (epoch+1) % 5 == 0 or epoch == 0:
                 self.eval(epoch)
 
     def eval(self, epoch=0):
@@ -128,7 +128,7 @@ def getArgs():
     parser.add_argument('--learning_rate',      type=float, default=1e-4)
     parser.add_argument('--ckpt_save_path',     type=str,   default='results/ckpt/last.pt')
     parser.add_argument('--image_save_path',    type=str,   default='results/img')
-    parser.add_argument('--pretrained_load_path',     type=str,   default='results/ckpt/last.pt')
+    parser.add_argument('--pretrained_load_path',     type=str,   default=None)
 
     return parser.parse_args()
 
