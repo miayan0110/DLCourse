@@ -25,13 +25,11 @@ def getData(mode):
         else:
             data_list = json.load(open('./new_test.json'))
 
-        img_names = []
         labels = []
         for value in data_list:
-            img_names.append('_'.join(value))
             label = [1 if x in value else 0 for x in label_dict.keys()] # to one-hot vector
             labels.append(label)
-        return img_names, labels
+        return labels
 
 
 class IClevrDataSet(torch.utils.data.Dataset):
@@ -39,7 +37,10 @@ class IClevrDataSet(torch.utils.data.Dataset):
         super().__init__()
         self.root = root
         self.mode = mode
-        self.imgs, self.labels = getData(mode)
+        if self.mode == 'train':
+            self.imgs, self.labels = getData(mode)
+        else:
+            self.labels = getData(mode)
 
     def __len__(self):
         return len(self.labels)
@@ -48,6 +49,7 @@ class IClevrDataSet(torch.utils.data.Dataset):
         # data preprocessing
         if self.mode == 'train':
             transformer = transforms.Compose([
+                transforms.RandomHorizontalFlip(0.5),
                 transforms.Resize((64, 64)),
                 transforms.ToTensor(),
                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
@@ -57,7 +59,7 @@ class IClevrDataSet(torch.utils.data.Dataset):
 
             return img, torch.Tensor(self.labels[index])
         else:
-            return self.imgs[index], torch.Tensor(self.labels[index])
+            return torch.Tensor(self.labels[index])
     
 
 

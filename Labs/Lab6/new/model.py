@@ -12,13 +12,15 @@ class ConditionDDPM(nn.Module):
             in_channels=img_channel + num_class,    # concat label classes and image channels
             out_channels=img_channel,
             layers_per_block=2,
-            block_out_channels=(32, 64, 64),
+            block_out_channels=(64, 128, 128, 256),
             down_block_types=(
                 "DownBlock2D",
+                "AttnDownBlock2D",
                 "AttnDownBlock2D",
                 "AttnDownBlock2D"
             ),
             up_block_types=(
+                "AttnUpBlock2D",
                 "AttnUpBlock2D",
                 "AttnUpBlock2D",
                 "UpBlock2D"
@@ -29,7 +31,7 @@ class ConditionDDPM(nn.Module):
         b, c, w, h = x.shape
 
         # change shape of labels to fit the images
-        labels = torch.Tensor(labels).view(b, self.num_class, 1, 1).expand(b, self.num_class, w, h)
+        labels = labels.view(b, self.num_class, 1, 1).expand(b, self.num_class, w, h)
 
         # concat labels into img to make inputs
         input = torch.cat((x, labels), dim=1)   # shape (b, c+num_class, w, h)
