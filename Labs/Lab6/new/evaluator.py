@@ -37,14 +37,14 @@ transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 class evaluation_model():
     def __init__(self):
         #modify the path to your own path
-        checkpoint = torch.load('./checkpoint.pth', map_location='cuda:1')
-        self.resnet18 = models.resnet18(pretrained=False).to('cuda:1')
+        checkpoint = torch.load('./checkpoint.pth')
+        self.resnet18 = models.resnet18(pretrained=False)
         self.resnet18.fc = nn.Sequential(
             nn.Linear(512,24),
             nn.Sigmoid()
         )
         self.resnet18.load_state_dict(checkpoint['model'])
-        self.resnet18 = self.resnet18.to('cuda:1')
+        self.resnet18 = self.resnet18.cuda()
         self.resnet18.eval()
         self.classnum = 24
     def compute_acc(self, out, onehot_labels):
@@ -63,6 +63,6 @@ class evaluation_model():
     def eval(self, images, labels):
         with torch.no_grad():
             #your image shape should be (batch, 3, 64, 64)
-            out = self.resnet18(images.to('cuda:1'))
+            out = self.resnet18(images)
             acc = self.compute_acc(out.cpu(), labels.cpu())
             return acc

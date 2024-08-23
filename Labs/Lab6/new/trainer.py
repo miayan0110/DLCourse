@@ -16,13 +16,14 @@ from evaluator import evaluation_model
 
 #############   Trainer   #############
 class DDPMTrainer:
-    def __init__(self, args, model, noise_scheduler, dataloader) -> None:
+    def __init__(self, args, model, noise_scheduler) -> None:
         self.args = args
         self.model = model  # use to predict and remove noises
         self.noise_scheduler = noise_scheduler  # use to add noise to images
-        self.train_dataloader = dataloader
-        self.val_dataloader = DataLoader(IClevrDataSet(root=args.data_folder_root, mode='val')
-                                         , batch_size=args.batch_size, shuffle=False)
+        self.train_dataloader = DataLoader(IClevrDataSet(root=args.data_folder_root, mode='train')
+                                         , batch_size=args.batch_size, shuffle=True)
+        self.val_dataloader = DataLoader(IClevrDataSet(root=args.data_folder_root, mode='val', file=args.test_json_file)
+                                         , batch_size=1, shuffle=False)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=args.learning_rate)
         self.criterion = nn.MSELoss()
 
@@ -67,46 +68,48 @@ class DDPMTrainer:
             print(f'[Epoch {epoch+1}] loss = {np.mean(epoch_loss)}')
 
             if np.mean(epoch_loss) < best_loss:
+                best_loss = np.mean(epoch_loss)
                 self.saveModel(epoch)
-            # if (epoch+1) % 5 == 0 or epoch == 0:
                 self.eval(epoch)
 
     def eval(self, epoch=0):
+        result_imgs = []
+        result_labels = []
         denoising_process_img = []
         if self.args.with_test:
             evaluator = evaluation_model()
+
         self.model.eval()
         with torch.no_grad():
-            avg_acc = []
-            for label in tqdm(self.val_dataloader):
+            for i, label in tqdm(enumerate(self.val_dataloader)):
                 x = torch.randn(label.shape[0], 3, 64, 64).to(self.args.device)
                 label = label.to(self.args.device)
-
-                # save denoising process image
-                denoising_process_img.append(x[0].unsqueeze(0))
+                result_labels.append(label)
 
                 for t in tqdm(self.noise_scheduler.timesteps):
                     pred_noise = self.model(x, label, t)
                     x = self.noise_scheduler.step(pred_noise, t, x).prev_sample
 
                     # save denoising process image
-                    if (t+1) % self.args.save_denoised_fig_per == 0:
-                        denoising_process_img.append(self.inv_normalize(x[0].unsqueeze(0)))
+                    if ((t+1) % self.args.save_denoised_fig_per == 0 or t == 0) and i == 25:
+                            denoising_process_img.append(self.inv_normalize(x))
+                result_imgs.append(x)
 
-                # calculate accuracy
-                if self.args.with_test:
-                    acc = evaluator.eval(x, label)
-                    print(f'Label: {label}, Acc: {acc:.5f}')
-                    avg_acc.append(acc)
-                
-                # save images
-                img_save_path = os.path.join(self.args.image_save_path, f'img_grid_epoch={epoch+1}.png')
-                denoise_save_path = os.path.join(self.args.image_save_path, f'denoise_grid_epoch={epoch+1}.png')
-                x = self.inv_normalize(x)   # inverse the normalization of images
-                pltImageGrid(x, img_save_path)
-                pltDenoiseProcess(torch.cat(denoising_process_img, 0), denoise_save_path)
+            # calculate accuracy
+            imgs = torch.cat(result_imgs, 0)
+            labels = torch.cat(result_labels, 0)
             if self.args.with_test:
-                print(f'Avg accuracy: {np.mean(avg_acc)}')
+                acc = evaluator.eval(imgs, labels)
+                print(f'Avg accuracy: {acc}')
+            
+            # save images
+            img_save_path = os.path.join(self.args.image_save_path, f'img_grid_epoch={epoch+1}_{self.args.test_json_file}.png')
+            denoise_save_path = os.path.join(self.args.image_save_path, f'denoise_grid_epoch={epoch+1}_{self.args.test_json_file}.png')
+            imgs = self.inv_normalize(imgs)   # inverse the normalization of images
+            pltImageGrid(imgs, img_save_path)
+            if len(denoising_process_img) > 1:
+                pltDenoiseProcess(torch.cat(denoising_process_img, 0), denoise_save_path)
+                
     
     def saveModel(self, epoch):
         print(f'> Saving model to {self.args.ckpt_save_path}...')
@@ -118,7 +121,7 @@ class DDPMTrainer:
 
     def loadModel(self):
         print(f'> Loading model from {self.args.pretrained_load_path}...')
-        checkpoint = torch.load(self.args.pretrained_load_path)
+        checkpoint = torch.load(self.args.pretrained_load_path, map_location=self.args.device)
         self.last_epoch = checkpoint['epoch']
         self.model.load_state_dict(checkpoint['model'])
         self.optimizer.load_state_dict(checkpoint['optimizer'])
@@ -137,26 +140,25 @@ def pltImageGrid(images, path):
 def getArgs():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_folder_root',   type=str,   default='')
-    parser.add_argument('--mode',               type=str,   default='train',    choices=['train', 'val', 'test'])
+    parser.add_argument('--mode',               type=str,   default='val',    choices=['train', 'val'])
     parser.add_argument('--batch_size',         type=int,   default=64)
     parser.add_argument('--n_epoch',            type=int,   default=300)
-    parser.add_argument('--device',             type=str,   default='cuda:1',     choices=['cuda:1', 'cpu'])
+    parser.add_argument('--device',             type=str,   default='cuda',     choices=['cuda', 'cuda:1', 'cpu'])
     parser.add_argument('--learning_rate',      type=float, default=1e-4)
     parser.add_argument('--ckpt_save_path',     type=str,   default='results/ckpt/last.pt')
     parser.add_argument('--image_save_path',    type=str,   default='results/img')
     parser.add_argument('--pretrained_load_path',       type=str,   default=None)
     parser.add_argument('--with_test',          action='store_true')
     parser.add_argument('--save_denoised_fig_per',      type=int,   default=100)
+    parser.add_argument('--test_json_file',     type=str,   default='test')
 
     return parser.parse_args()
 
 
 if __name__ == '__main__':
+    seed = 0
+    torch.manual_seed(seed)
     args = getArgs()
-
-    # prepare data
-    dataset = IClevrDataSet(root=args.data_folder_root, mode=args.mode)
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
     # prepare model and scheduler
     noise_scheduler = DDPMScheduler(num_train_timesteps=1000)
@@ -164,6 +166,8 @@ if __name__ == '__main__':
     model = ConditionDDPM(img_channel=3, num_class=24).to(args.device)    # image channel: RGB
 
     # start training
-    trainer = DDPMTrainer(args, model, noise_scheduler, dataloader)
-    trainer.train()
-    # trainer.eval(0)
+    trainer = DDPMTrainer(args, model, noise_scheduler)
+    if args.mode == 'train':
+        trainer.train()
+    else:
+        trainer.eval(-1)

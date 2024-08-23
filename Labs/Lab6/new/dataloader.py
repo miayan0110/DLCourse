@@ -7,7 +7,7 @@ from torchvision.datasets.folder import default_loader as imgloader
 
 
 #############   Dataset   #############
-def getData(mode):
+def getData(mode, file='test'):
     label_dict = json.load(open('./objects.json'))
     if mode == 'train':
         data_dict = json.load(open('./train.json'))
@@ -20,10 +20,7 @@ def getData(mode):
             labels.append(label)
         return img_path, labels
     else:
-        if mode == 'val':
-            data_list = json.load(open('./test.json'))
-        else:
-            data_list = json.load(open('./new_test.json'))
+        data_list = json.load(open(f'./{file}.json'))
 
         labels = []
         for value in data_list:
@@ -33,14 +30,14 @@ def getData(mode):
 
 
 class IClevrDataSet(torch.utils.data.Dataset):
-    def __init__(self, root, mode='train') -> None:
+    def __init__(self, root, mode='train', file='test') -> None:
         super().__init__()
         self.root = root
         self.mode = mode
         if self.mode == 'train':
             self.imgs, self.labels = getData(mode)
         else:
-            self.labels = getData(mode)
+            self.labels = getData(mode, file=file)
 
     def __len__(self):
         return len(self.labels)
@@ -61,11 +58,3 @@ class IClevrDataSet(torch.utils.data.Dataset):
         else:
             return torch.Tensor(self.labels[index])
     
-
-
-
-# if __name__ == '__main__':
-#     dataset = IClevrDataSet(root='', mode='train')
-#     data2plt = DataLoader(dataset, batch_size=8, shuffle=False)
-#     img, label = next(iter(data2plt))
-#     pltImageGrid(img)
